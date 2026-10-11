@@ -1,0 +1,119 @@
+@import "tailwindcss";
+
+@theme {
+  --color-paper: #FAFAF8;
+  --color-paper-pure: #FFFFFF;
+  --color-ink: #0A0A0A;
+  --color-red: #D4141C;
+  --color-red-deep: #A30F15;
+
+  --font-display: "Anton", sans-serif;
+  --font-serif: "Shippori Mincho", serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+:root {
+  --paper: #FAFAF8;
+  --paper-pure: #FFFFFF;
+  --ink: #0A0A0A;
+  --red: #D4141C;
+  --red-deep: #A30F15;
+  --ink-hairline: rgba(10, 10, 10, 0.12);
+}
+
+* {
+  border-radius: 0 !important;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background-color: var(--red);
+  color: var(--paper-pure);
+}
+
+:focus-visible {
+  outline: 2px solid var(--red) !important;
+  outline-offset: 2px !important;
+}
+
+/* Custom In-Palette Patterns (No flat greys allowed; only ink hatching, halftone, or <=12% hairline) */
+.pattern-hatch {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--ink) 0px,
+    var(--ink) 1px,
+    transparent 1px,
+    transparent 6px
+  );
+}
+
+.pattern-hatch-dense {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--ink) 0px,
+    var(--ink) 1.5px,
+    transparent 1.5px,
+    transparent 4px
+  );
+}
+
+.pattern-crosshatch {
+  background-image:
+    repeating-linear-gradient(
+      -45deg,
+      var(--ink) 0px,
+      var(--ink) 1px,
+      transparent 1px,
+      transparent 6px
+    ),
+    repeating-linear-gradient(
+      45deg,
+      var(--ink) 0px,
+      var(--ink) 1px,
+      transparent 1px,
+      transparent 6px
+    );
+}
+
+.pattern-halftone {
+  background-image: radial-gradient(var(--ink) 1px, transparent 1px);
+  background-size: 5px 5px;
+}
+
+.pattern-hazard-red {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--red) 0px,
+    var(--red) 6px,
+    var(--paper-pure) 6px,
+    var(--paper-pure) 12px
+  );
+}
+
+.pattern-hazard-ink {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--ink) 0px,
+    var(--ink) 6px,
+    var(--paper-pure) 6px,
+    var(--paper-pure) 12px
+  );
+}
+
+/* Image filter for avatars and album art to keep strict palette */
+.manga-image-filter {
+  filter: grayscale(100%) contrast(220%) brightness(105%);
+  mix-blend-mode: multiply;
+}

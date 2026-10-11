@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none">
+  <rect width="1200" height="630" fill="#FAFAF8" />
+  <rect x="24" y="24" width="1152" height="582" fill="#FFFFFF" stroke="#0A0A0A" stroke-width="6" />
+  <!-- Corner crop marks in red -->
+  <path d="M40 60 V40 H60" stroke="#D4141C" stroke-width="4" />
+  <path d="M1160 60 V40 H1140" stroke="#D4141C" stroke-width="4" />
+  <path d="M40 570 V590 H60" stroke="#D4141C" stroke-width="4" />
+  <path d="M1160 570 V590 H1140" stroke="#D4141C" stroke-width="4" />
+  <!-- Red Orb Motif -->
+  <circle cx="920" cy="280" r="110" fill="#D4141C" stroke="#0A0A0A" stroke-width="5" />
+  <!-- Monolith & Horizon -->
+  <rect x="895" y="240" width="50" height="260" fill="#FAFAF8" stroke="#0A0A0A" stroke-width="4" />
+  <line x1="24" y1="500" x2="1176" y2="500" stroke="#0A0A0A" stroke-width="4" />
+  <!-- Title Typography -->
+  <rect x="80" y="90" width="260" height="36" fill="#0A0A0A" />
+  <text x="94" y="115" fill="#FFFFFF" font-family="monospace" font-size="20" font-weight="bold" letter-spacing="4">FILE // 01 : ENTRY PLUG</text>
+  <text x="80" y="230" fill="#0A0A0A" font-family="serif" font-size="78" font-weight="bold">JONATHAN ERICK</text>
+  <text x="80" y="325" fill="#0A0A0A" font-family="serif" font-size="78" font-weight="bold">CHRISTOVANDY</text>
+  <line x1="80" y1="355" x2="720" y2="355" stroke="#D4141C" stroke-width="8" />
+  <text x="80" y="415" fill="#0A0A0A" font-family="monospace" font-size="26" font-weight="bold" letter-spacing="3">INTERACTIVE 2.5D MANGA DOSSIER</text>
+</svg>
