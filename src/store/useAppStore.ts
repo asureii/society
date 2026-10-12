@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { STAGE_CONFIG, type BeatMode } from '../config/stage';
 
 export type ChapterId =
   | 'cover'
@@ -15,6 +16,7 @@ export interface ChapterMeta {
   title: string;
   jpSubtitle: string;
   caption: string;
+  mode: BeatMode;
 }
 
 export const CHAPTERS: ChapterMeta[] = [
@@ -22,50 +24,57 @@ export const CHAPTERS: ChapterMeta[] = [
     id: 'cover',
     number: '01',
     title: 'THE ENTRY PLUG',
-    jpSubtitle: '壱 // 起動指令',
-    caption: 'THE SIGNAL IS LOCKED. NO RETREAT FROM THE HORIZON LINE.',
+    jpSubtitle: '壱 // 起動',
+    caption: 'THE STEPPING STONES CROSS EMPTY GROUND. AHEAD, THE TWIN MONOLITH AWAITS.',
+    mode: 'scene',
   },
   {
     id: 'about',
     number: '02',
     title: 'PERSONNEL FILE',
-    jpSubtitle: '弐 // 機密人事記録',
-    caption: 'DOSSIER UNSEALED. SUBJECT HARMONICS REMAIN WITHIN TOLERANCE.',
+    jpSubtitle: '弐 // 人事記録',
+    caption: 'DOSSIER UNSEALED. HARMONICS REMAIN WITHIN TOLERANCE.',
+    mode: 'page',
   },
   {
     id: 'work',
     number: '03',
     title: 'THE WORK',
-    jpSubtitle: '参 // 実戦開発記録',
+    jpSubtitle: '参 // 開発記録',
     caption: 'FIELD ARTIFACTS RECOVERED FROM PUBLIC REPOSITORY TRANSMISSIONS.',
+    mode: 'page',
   },
   {
     id: 'status',
     number: '04',
     title: 'PILOT STATUS',
-    jpSubtitle: '肆 // 神経同調率',
+    jpSubtitle: '肆 // 同調率',
     caption: 'REAL-TIME NEURAL LINK TELEMETRY VIA LANYARD SOCKET.',
+    mode: 'scene',
   },
   {
     id: 'skills',
     number: '05',
     title: 'MAGI SYSTEM',
-    jpSubtitle: '伍 // 三賢人合議制',
+    jpSubtitle: '伍 // 三賢人',
     caption: 'MELCHIOR, BALTHASAR, AND CASPAR CONCUR: UNANIMOUS APPROVAL.',
+    mode: 'page',
   },
   {
     id: 'timeline',
     number: '06',
     title: 'CHRONOLOGY',
-    jpSubtitle: '陸 // 航跡記録',
+    jpSubtitle: '陸 // 航跡',
     caption: 'EACH MILESTONE ETCHED IN INK ALONG THE APPROACH VECTOR.',
+    mode: 'page',
   },
   {
     id: 'contact',
     number: '07',
     title: 'FINAL PANEL',
-    jpSubtitle: '漆 // 終局・通信',
-    caption: 'AT THE FOOT OF THE MONOLITH. OPEN A DIRECT CHANNEL.',
+    jpSubtitle: '漆 // 終局',
+    caption: 'AT THE FOOT OF THE TWIN MONOLITH. OPEN A DIRECT CHANNEL.',
+    mode: 'scene',
   },
 ];
 
@@ -116,12 +125,19 @@ interface AppState {
   setLoadProgress: (progress: number) => void;
   setIsLoaded: (loaded: boolean) => void;
 
-  // Scroll & Navigation state
+  // Scroll, Beat Mode & Navigation state
   scrollProgress: number;
   hasScrolled: boolean;
   activeChapter: ChapterId;
+  activeBeatMode: BeatMode;
+  isPageOpaque: boolean;
   chapterTransitionBleed: number;
-  setScrollState: (progress: number, activeChapter: ChapterId, bleed: number) => void;
+  setScrollState: (
+    progress: number,
+    activeChapter: ChapterId,
+    bleed: number,
+    isPageOpaque: boolean,
+  ) => void;
 
   // Mouse / Gyro Parallax normalized [-1, 1]
   mouseTarget: [number, number];
@@ -155,11 +171,15 @@ export const useAppStore = create<AppState>((set) => ({
   scrollProgress: 0,
   hasScrolled: false,
   activeChapter: 'cover',
+  activeBeatMode: 'scene',
+  isPageOpaque: false,
   chapterTransitionBleed: 0,
-  setScrollState: (scrollProgress, activeChapter, chapterTransitionBleed) =>
+  setScrollState: (scrollProgress, activeChapter, chapterTransitionBleed, isPageOpaque) =>
     set((state) => ({
       scrollProgress,
       activeChapter,
+      activeBeatMode: STAGE_CONFIG[activeChapter].mode,
+      isPageOpaque,
       chapterTransitionBleed,
       hasScrolled: state.hasScrolled || scrollProgress > 0.008,
     })),

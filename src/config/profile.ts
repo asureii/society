@@ -9,6 +9,8 @@ export interface RepoFallback {
   isFeatured?: boolean;
 }
 
+export type MagiTier = 1 | 2 | 3 | 4 | 5;
+
 export interface MagiColumn {
   code: 'MELCHIOR-1' | 'BALTHASAR-2' | 'CASPAR-3';
   persona: string;
@@ -17,7 +19,9 @@ export interface MagiColumn {
   items: {
     name: string;
     spec: string;
-    syncLevel: string;
+    /** Non-numeric hatch/tick tier (1..5) — never fabricated percentages */
+    tier: MagiTier;
+    tierLabel: 'CORE' | 'ACTIVE' | 'EXPLORING';
   }[];
 }
 
@@ -73,8 +77,8 @@ export interface ProfileConfig {
 export const PROFILE: ProfileConfig = {
   fullName: 'JONATHAN ERICK CHRISTOVANDY',
   shortName: 'J. E. CHRISTOVANDY',
-  jpDecorativeTitle: 'パイロット記録 // 壱号',
-  designationCode: 'PILOT-FILE // 01-CHRISTOVANDY',
+  jpDecorativeTitle: '壱号記録',
+  designationCode: 'PILOT-FILE // 01',
   roleTagline: 'TODO: SYSTEMS & CREATIVE DEVELOPER // FULL-STACK ENGINEER',
   location: 'TODO: LOCATION / TIMEZONE (e.g. JAKARTA, ID // UTC+7)',
   bio: [
@@ -87,14 +91,13 @@ export const PROFILE: ProfileConfig = {
     'TODO: Mechanical Keyboards / Tooling',
     'TODO: Neon Genesis Evangelion & Mecha Design',
   ],
-  coverCaption: 'THE SIGNAL IS LOCKED. NO RETREAT FROM THE HORIZON LINE.',
+  coverCaption: 'THE STEPPING STONES CROSS EMPTY GROUND. AHEAD, THE TWIN MONOLITH AWAITS.',
   evaFanDossier: {
-    favoriteEpisode: 'TODO: EPISODE # (e.g. EPISODE 19: INTROJECTION / 男の戰い)',
+    favoriteEpisode: 'TODO: EPISODE # (e.g. EPISODE 19: INTROJECTION)',
     favoriteCharacter: 'TODO: FAVORITE CHARACTER (e.g. KAJI RYOJI / MISATO KATSURAGI)',
     favoriteQuote: 'TODO: "Insert favorite Evangelion quote here in src/config/profile.ts"',
-    syncNote: 'PATTERN BLUE CONFIRMED // HARMONICS NORMAL WITHIN ENTRY PLUG',
+    syncNote: 'PATTERN BLUE // HARMONICS NOMINAL',
   },
-  // Replace with your live GitHub handle (e.g. 'camellia' or your exact username)
   githubUsername: 'TODO_GITHUB_USERNAME',
   excludeForks: true,
   featuredRepos: [
@@ -107,7 +110,7 @@ export const PROFILE: ProfileConfig = {
     {
       name: 'pilot-file-portfolio',
       description:
-        'Scroll-driven 2.5D manga portfolio built with React Three Fiber, custom GLSL ink/hatching shaders, GSAP ScrollTrigger, and Lenis.',
+        'Scroll-driven 2.5D manga portfolio built with React Three Fiber, hand-inked procedural art, custom GLSL shaders, GSAP ScrollTrigger, and Lenis.',
       language: 'TypeScript',
       stargazers_count: 1,
       pushed_at: new Date().toISOString(),
@@ -147,44 +150,43 @@ export const PROFILE: ProfileConfig = {
       html_url: 'https://github.com',
     },
   ],
-  // Replace with your 18-digit Discord Snowflake ID registered with Lanyard (https://github.com/Phineas/lanyard)
   discordUserId: 'TODO_DISCORD_USER_ID',
   allowColorHoverOnMedia: false,
   magiSkills: [
     {
       code: 'MELCHIOR-1',
-      persona: 'AS SCIENTIST // 科学者',
+      persona: 'SCIENTIST',
       category: 'FRONTEND & CREATIVE DEV',
-      jpLabel: '視覚演算システム',
+      jpLabel: '科学者',
       items: [
-        { name: 'TypeScript / React', spec: 'UI Architecture & State', syncLevel: '98.4%' },
-        { name: 'Three.js / R3F / GLSL', spec: '2.5D Shaders & Post-FX', syncLevel: '94.2%' },
-        { name: 'GSAP / ScrollTrigger', spec: 'Scroll Choreography', syncLevel: '96.0%' },
-        { name: 'Tailwind CSS / Design Systems', spec: 'Strict Token UI', syncLevel: '99.1%' },
+        { name: 'TypeScript / React', spec: 'UI Architecture & State', tier: 5, tierLabel: 'CORE' },
+        { name: 'Three.js / R3F / GLSL', spec: '2.5D Shaders & Post-FX', tier: 5, tierLabel: 'CORE' },
+        { name: 'GSAP / ScrollTrigger', spec: 'Scroll Choreography', tier: 5, tierLabel: 'CORE' },
+        { name: 'Tailwind CSS / Design Systems', spec: 'Strict Token UI', tier: 5, tierLabel: 'CORE' },
       ],
     },
     {
       code: 'BALTHASAR-2',
-      persona: 'AS GUARDIAN // 守護者',
+      persona: 'GUARDIAN',
       category: 'BACKEND & SYSTEMS TOOLS',
-      jpLabel: '基幹制御システム',
+      jpLabel: '守護者',
       items: [
-        { name: 'TODO: Primary Backend Lang', spec: 'API & Concurrency', syncLevel: '92.0%' },
-        { name: 'Linux / Shell / Git', spec: 'Environment & Tooling', syncLevel: '95.5%' },
-        { name: 'PostgreSQL / Redis', spec: 'Data Persistence & Cache', syncLevel: '89.8%' },
-        { name: 'Docker / CI Pipelines', spec: 'Deterministic Builds', syncLevel: '91.3%' },
+        { name: 'TODO: Primary Backend Lang', spec: 'API & Concurrency', tier: 4, tierLabel: 'CORE' },
+        { name: 'Linux / Shell / Git', spec: 'Environment & Tooling', tier: 5, tierLabel: 'CORE' },
+        { name: 'PostgreSQL / Redis', spec: 'Data Persistence & Cache', tier: 4, tierLabel: 'ACTIVE' },
+        { name: 'Docker / CI Pipelines', spec: 'Deterministic Builds', tier: 4, tierLabel: 'ACTIVE' },
       ],
     },
     {
       code: 'CASPAR-3',
-      persona: 'AS SEEKER // 探求者',
+      persona: 'SEEKER',
       category: 'LEARNING & EXPLORING',
-      jpLabel: '次世代研究領域',
+      jpLabel: '探求者',
       items: [
-        { name: 'TODO: Low-Level / Rust / Zig', spec: 'Memory-Safe Systems', syncLevel: 'SYNCING' },
-        { name: 'Custom Render Pipelines', spec: 'NPR & Halftone Math', syncLevel: 'SYNCING' },
-        { name: 'Distributed Systems', spec: 'Real-Time Telemetry', syncLevel: 'SYNCING' },
-        { name: 'TODO: Custom Topic', spec: 'Edit in src/config/profile.ts', syncLevel: 'SYNCING' },
+        { name: 'TODO: Low-Level / Rust / Zig', spec: 'Memory-Safe Systems', tier: 3, tierLabel: 'EXPLORING' },
+        { name: 'Custom Render Pipelines', spec: 'NPR & Halftone Math', tier: 4, tierLabel: 'EXPLORING' },
+        { name: 'Distributed Systems', spec: 'Real-Time Telemetry', tier: 3, tierLabel: 'EXPLORING' },
+        { name: 'TODO: Custom Topic', spec: 'Edit in src/config/profile.ts', tier: 2, tierLabel: 'EXPLORING' },
       ],
     },
   ],
@@ -231,7 +233,7 @@ export const PROFILE: ProfileConfig = {
       classification: 'MILESTONE',
       summary:
         'TODO: Describe what Jonathan Erick Christovandy is currently building or seeking next.',
-      caption: 'THE WALK TOWARD THE MONOLITH CONTINUES.',
+      caption: 'THE WALK TOWARD THE TWIN MONOLITH CONTINUES.',
     },
   ],
   links: {

@@ -3,13 +3,9 @@ import { PROFILE } from '../config/profile';
 import { useGithubRepos, type GithubRepoItem } from '../hooks/useGithubRepos';
 import { formatRelativeTime, isWithinDays } from '../lib/math';
 import { ChapterCard } from '../ui/ChapterCard';
-import { CaptionBox } from '../ui/CaptionBox';
+import { InkSpotIllustration } from '../ui/InkSpotIllustration';
 import { useAppStore } from '../store/useAppStore';
 
-/**
- * In-palette language badge: NO GitHub language colors allowed.
- * Uses a two-letter code + distinct geometric glyph in a hard black box.
- */
 function getLanguageBadge(lang: string): { code: string; glyph: string } {
   const normalized = lang.toLowerCase();
   if (normalized.includes('typescript')) return { code: 'TS', glyph: '◆' };
@@ -34,7 +30,7 @@ const RepoMangaPanel: React.FC<{ repo: GithubRepoItem; index: number }> = ({ rep
     const rect = e.currentTarget.getBoundingClientRect();
     const nx = (e.clientX - rect.left) / rect.width - 0.5;
     const ny = (e.clientY - rect.top) / rect.height - 0.5;
-    setTilt({ rx: -ny * 7, ry: nx * 7 });
+    setTilt({ rx: -ny * 6, ry: nx * 6 });
   };
 
   const handleMouseLeave = () => {
@@ -43,13 +39,14 @@ const RepoMangaPanel: React.FC<{ repo: GithubRepoItem; index: number }> = ({ rep
 
   return (
     <article
+      data-content-box={`work-repo-${index}`}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       style={{
         transform: `perspective(900px) rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg)`,
         transition: 'transform 160ms ease-out',
       }}
-      className="group relative bg-paper-pure border-3 border-ink p-5 shadow-[6px_6px_0px_var(--ink)] hover:border-red flex flex-col justify-between overflow-hidden"
+      className="group relative bg-paper-pure border-3 border-ink p-5 shadow-[5px_5px_0px_var(--ink)] hover:border-red flex flex-col justify-between overflow-hidden"
     >
       {/* Black hatching sweep overlay on hover */}
       <div
@@ -63,14 +60,13 @@ const RepoMangaPanel: React.FC<{ repo: GithubRepoItem; index: number }> = ({ rep
       />
 
       <div className="relative z-10">
-        {/* Top metadata row */}
+        {/* Top metadata row (all text >= 12px per C6) */}
         <div className="flex items-center justify-between gap-2 border-b-2 border-ink pb-2 mb-3">
           <div className="flex items-center gap-2">
-            <span className="font-mono text-[10px] font-bold bg-ink text-paper-pure px-1.5 py-0.5">
-              PANEL 03.{index + 1}
+            <span className="font-mono text-xs font-bold bg-ink text-paper-pure px-1.5 py-0.5">
+              03.{index + 1}
             </span>
-            {/* In-palette geometric language badge */}
-            <span className="inline-flex items-center gap-1 border border-ink bg-paper px-1.5 py-0.5 font-mono text-[10px] font-bold text-ink">
+            <span className="inline-flex items-center gap-1 border border-ink bg-paper px-1.5 py-0.5 font-mono text-xs font-bold text-ink">
               <span aria-hidden="true">{badge.glyph}</span>
               <span>{badge.code}</span>
               <span className="sr-only">({repo.language})</span>
@@ -79,11 +75,11 @@ const RepoMangaPanel: React.FC<{ repo: GithubRepoItem; index: number }> = ({ rep
 
           <div className="flex items-center gap-1.5">
             {isActiveRecent && (
-              <span className="bg-red text-paper-pure font-mono text-[9px] font-bold tracking-widest px-1.5 py-0.5 uppercase">
+              <span className="bg-red text-paper-pure font-mono text-xs font-bold tracking-wider px-1.5 py-0.5 uppercase">
                 ACTIVE
               </span>
             )}
-            <span className="font-mono text-[10px] font-bold text-ink border border-ink px-1.5 py-0.5">
+            <span className="font-mono text-xs font-bold text-ink border border-ink px-1.5 py-0.5">
               ★ {repo.stargazers_count}
             </span>
           </div>
@@ -112,15 +108,15 @@ const RepoMangaPanel: React.FC<{ repo: GithubRepoItem; index: number }> = ({ rep
           {repo.topics.slice(0, 3).map((topic) => (
             <span
               key={topic}
-              className="font-mono text-[9px] uppercase tracking-wider border border-ink px-1.5 py-0.5 bg-paper text-ink"
+              className="font-mono text-xs uppercase tracking-wider border border-ink px-1.5 py-0.5 bg-paper text-ink"
             >
               #{topic}
             </span>
           ))}
         </div>
 
-        <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-ink">
-          PUSH // {formatRelativeTime(repo.pushed_at)}
+        <span className="font-mono text-xs font-bold uppercase tracking-wider text-ink">
+          {formatRelativeTime(repo.pushed_at)}
         </span>
       </div>
     </article>
@@ -134,32 +130,38 @@ export const Work: React.FC = () => {
     <section
       id="chapter-work"
       aria-labelledby="heading-work"
-      className="relative min-h-[125vh] w-full px-6 sm:px-12 md:px-20 py-28 pointer-events-none flex flex-col justify-center"
+      className="relative min-h-screen w-full manga-page-wipe page-beat-safe pb-24 pointer-events-auto flex flex-col justify-center"
     >
       <div className="w-full max-w-6xl mx-auto space-y-8">
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pointer-events-auto">
+        <div
+          data-content-box="work-header"
+          className="flex flex-col md:flex-row md:items-end justify-between gap-4"
+        >
           <div id="heading-work">
             <ChapterCard
               number="03"
               title="THE WORK"
-              jpSubtitle="参 // 実戦開発記録"
-              alertText="GITHUB TELEMETRY // LIVE"
+              jpSubtitle="参 // 開発記録"
+              alertText="GITHUB TELEMETRY"
             />
           </div>
-          <CaptionBox
-            code="CAPTION // 03 : REPOSITORIES"
-            text="FIELD ARTIFACTS RECOVERED FROM PUBLIC REPOSITORY TRANSMISSIONS."
-          />
+          <div className="flex items-center gap-3 border-2 border-ink bg-paper-pure p-2">
+            <InkSpotIllustration motif="horizon-spire" seed={303} className="w-24 h-14" />
+            <span className="font-mono text-xs font-bold uppercase text-ink max-w-[180px]">
+              PUBLIC REPOSITORY TRANSMISSIONS.
+            </span>
+          </div>
         </div>
 
         {/* Stylized Alert Banner on Rate Limit / Placeholder Config */}
         {errorSignal && (
           <div
             role="alert"
-            className="pointer-events-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-red text-paper-pure border-3 border-ink p-3.5 shadow-[4px_4px_0px_var(--ink)]"
+            data-content-box="work-alert"
+            className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-red text-paper-pure border-3 border-ink p-3.5 shadow-[4px_4px_0px_var(--ink)]"
           >
             <div className="flex items-center gap-2.5">
-              <span className="bg-ink text-paper-pure font-mono text-[10px] font-bold px-2 py-0.5 uppercase">
+              <span className="bg-ink text-paper-pure font-mono text-xs font-bold px-2 py-0.5 uppercase">
                 WARNING
               </span>
               <span className="font-mono text-xs font-bold tracking-wider uppercase">
@@ -176,13 +178,13 @@ export const Work: React.FC = () => {
           </div>
         )}
 
-        {/* Loading Skeletons (Manga-styled empty white panels with black sketch lines) */}
+        {/* Loading Skeletons */}
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pointer-events-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {Array.from({ length: 6 }).map((_, idx) => (
               <div
                 key={idx}
-                className="bg-paper-pure border-3 border-ink p-5 h-56 flex flex-col justify-between shadow-[6px_6px_0px_var(--ink)]"
+                className="bg-paper-pure border-3 border-ink p-5 h-56 flex flex-col justify-between shadow-[5px_5px_0px_var(--ink)]"
               >
                 <div className="h-4 w-1/2 border border-ink pattern-hatch" />
                 <div className="space-y-2">
@@ -195,22 +197,25 @@ export const Work: React.FC = () => {
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pointer-events-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {repos.map((repo, idx) => (
               <RepoMangaPanel key={repo.name} repo={repo} index={idx} />
             ))}
           </div>
         )}
 
-        {/* Optional Hatched-Density Contribution Heatmap Grid (behind PROFILE.enableGithubHeatmap flag) */}
+        {/* Hatched-Density Contribution Heatmap Grid */}
         {PROFILE.enableGithubHeatmap && (
-          <div className="pointer-events-auto bg-paper-pure border-3 border-ink p-4 sm:p-5 shadow-[5px_5px_0px_var(--ink)]">
+          <div
+            data-content-box="work-heatmap"
+            className="bg-paper-pure border-3 border-ink p-4 sm:p-5 shadow-[5px_5px_0px_var(--ink)]"
+          >
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink/15 pb-2 mb-3">
-              <span className="font-mono text-[10px] font-bold tracking-widest uppercase">
-                PUBLIC EVENT DENSITY // LAST 28 DAYS (HATCHED GRADATION)
+              <span className="font-mono text-xs font-bold tracking-wider uppercase">
+                PUBLIC EVENT DENSITY // LAST 28 DAYS
               </span>
-              <span className="font-mono text-[10px] font-bold text-red uppercase">
-                PEAK / CURRENT = RED SIGNAL
+              <span className="font-mono text-xs font-bold text-red uppercase">
+                CURRENT DAY = RED SIGNAL
               </span>
             </div>
             <div className="grid grid-cols-14 sm:grid-cols-28 gap-1.5">

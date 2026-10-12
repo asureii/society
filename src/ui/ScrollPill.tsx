@@ -8,18 +8,19 @@ export const ScrollPill: React.FC = () => {
 
   return (
     <aside
+      data-hud-element="scroll-pill"
       aria-label="Scroll Depth Progress"
-      className="fixed right-3.5 md:right-6 top-1/2 -translate-y-1/2 z-40 pointer-events-none flex flex-col items-center gap-2"
+      className="fixed right-3 md:right-4 top-1/2 -translate-y-1/2 z-40 pointer-events-none flex flex-col items-center gap-1.5"
     >
-      <span className="font-mono text-[10px] font-bold tracking-tighter bg-paper-pure border border-ink px-1 text-ink">
+      <span className="font-mono text-xs font-bold tracking-tighter bg-paper-pure border border-ink px-1 text-ink">
         {String(pct).padStart(2, '0')}%
       </span>
 
       {/* Slim vertical scroll-progress pill: black outline with red fill */}
-      <div className="relative w-2.5 h-36 md:h-48 bg-paper-pure border-2 border-ink overflow-hidden">
+      <div className="relative w-2.5 h-32 md:h-40 bg-paper-pure border-2 border-ink overflow-hidden">
         <div
           className="w-full bg-red transition-none origin-top"
-          style={{ height: `${ Math.max(2, scrollProgress * 100) }%` }}
+          style={{ height: `${Math.max(2, scrollProgress * 100)}%` }}
         />
 
         {/* Chapter tick marks */}
@@ -36,13 +37,6 @@ export const ScrollPill: React.FC = () => {
           );
         })}
       </div>
-
-      <span
-        className="font-mono text-[9px] tracking-widest text-ink uppercase bg-paper-pure px-0.5"
-        style={{ writingMode: 'vertical-rl' }}
-      >
-        SYNC DEPTH
-      </span>
     </aside>
   );
 };

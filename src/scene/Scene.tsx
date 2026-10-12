@@ -9,6 +9,7 @@ import { PostInk } from './PostInk';
 
 export const Scene: React.FC = () => {
   const isMobile = useAppStore((s) => s.isMobile);
+  const isPageOpaque = useAppStore((s) => s.isPageOpaque);
   const [tabVisible, setTabVisible] = useState<boolean>(true);
 
   // Pause rendering when browser tab is hidden
@@ -20,6 +21,9 @@ export const Scene: React.FC = () => {
     return () => document.removeEventListener('visibilitychange', onVisibilityChange);
   }, []);
 
+  // Pause WebGL rendering when a full-bleed white manga page beat covers the viewport (C3 GPU save)
+  const shouldRender = tabVisible && !isPageOpaque;
+
   return (
     <div
       className="fixed inset-0 z-0 pointer-events-none bg-paper"
@@ -27,7 +31,7 @@ export const Scene: React.FC = () => {
     >
       <Canvas
         dpr={isMobile ? [1, 1.5] : [1, 2]}
-        frameloop={tabVisible ? 'always' : 'never'}
+        frameloop={shouldRender ? 'always' : 'never'}
         camera={{ position: [0, 0.15, 6.2], fov: 50, near: 0.1, far: 50 }}
         gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
       >

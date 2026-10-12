@@ -1,12 +1,12 @@
 import type { ThemeColorKey } from './theme';
 
 export type LayerKind =
-  | 'far-sky-monolith'
-  | 'red-orb'
-  | 'mid-far-horizon'
-  | 'mid-pilot'
-  | 'near-stepping-stones'
-  | 'foreground-debris';
+  | 'sky'
+  | 'monolith'
+  | 'orb'
+  | 'horizon'
+  | 'path'
+  | 'foreground';
 
 export interface LayerConfig {
   id: string;
@@ -16,12 +16,16 @@ export interface LayerConfig {
   texturePath: string;
   /** Optional grayscale depth map in /public/layers/<scene>/<layer-name>.depth.png */
   depthMapPath?: string;
-  /** Base Z position in world units (camera starts at z=6 and dollies toward z=-6) */
+  /** Base Z position in world units (camera starts at z=6.2 and dollies toward z=-5.2) */
   z: number;
   /** Base Y offset in world units */
   y: number;
-  /** Plane dimensions in world units [width, height] */
+  /** Plane dimensions in world units [width, height] (overscanned ~8% in Layer.tsx to prevent depth seams) */
   scale: [number, number];
+  /** Target 2x pixel canvas resolution [width, height] capped at 4096px */
+  textureSize: [number, number];
+  /** Number of line-boil variants on desktop (3 for main ink layers, 1 on foreground to keep memory <150MB) */
+  boilVariants: number;
   /** Mouse & scroll parallax multiplier */
   parallaxFactor: [number, number];
   /** Strict palette tint token */
@@ -42,136 +46,148 @@ export interface LayerConfig {
 }
 
 /**
- * 2.5D LAYER CONTRACT
+ * 2.5D LAYER CONTRACT (NO PILOT FIGURE — EMPTY SCALE & TWIN MONOLITH)
  * Drop custom illustrated PNGs into `/public/layers/entry-plug/<layer-name>.png`
  * and optional grayscale depth maps into `/public/layers/entry-plug/<layer-name>.depth.png`.
- * Until external PNG files are added, the engine automatically synthesizes high-detail
- * procedural manga ink + depth textures matching these exact layer specs.
+ * Until external PNG files are added, `src/scene/art/` synthesizes variable-width hand-inked
+ * brush & hatching textures with 3-frame line-boil atlases.
  */
 export const SCENE_LAYERS: LayerConfig[] = [
   {
-    id: 'far-sky',
-    kind: 'far-sky-monolith',
+    id: 'sky',
+    kind: 'sky',
     scene: 'entry-plug',
-    texturePath: '/layers/entry-plug/far-sky-monolith.png',
-    depthMapPath: '/layers/entry-plug/far-sky-monolith.depth.png',
-    z: -14,
-    y: 0.4,
-    scale: [28, 16],
-    parallaxFactor: [0.08, 0.05],
+    texturePath: '/layers/entry-plug/sky.png',
+    depthMapPath: '/layers/entry-plug/sky.depth.png',
+    z: -14.5,
+    y: 0.45,
+    scale: [30, 17],
+    textureSize: [1600, 900],
+    boilVariants: 3,
+    parallaxFactor: [0.07, 0.04],
     tintToken: 'ink',
     allowRedChannel: false,
     shaderOptions: {
-      hatchDensity: 48.0,
+      hatchDensity: 54.0,
       edgeStrength: 1.15,
-      boilAmount: 0.0012,
-      depthDisplacement: 0.008,
-      halftoneMix: 0.2,
+      boilAmount: 0.0008,
+      depthDisplacement: 0.006,
+      halftoneMix: 0.12,
       rippleAmount: 0.0,
     },
   },
   {
-    id: 'red-orb',
-    kind: 'red-orb',
+    id: 'orb',
+    kind: 'orb',
     scene: 'entry-plug',
-    texturePath: '/layers/entry-plug/red-orb.png',
-    depthMapPath: '/layers/entry-plug/red-orb.depth.png',
-    z: -11.5,
-    y: 1.15,
-    scale: [11, 11],
-    parallaxFactor: [0.14, 0.1],
+    texturePath: '/layers/entry-plug/orb.png',
+    depthMapPath: '/layers/entry-plug/orb.depth.png',
+    z: -12.6,
+    y: 0.25,
+    scale: [22, 13],
+    textureSize: [1400, 900],
+    boilVariants: 3,
+    parallaxFactor: [0.12, 0.08],
     tintToken: 'red',
     allowRedChannel: true,
     shaderOptions: {
-      hatchDensity: 60.0,
-      edgeStrength: 1.3,
-      boilAmount: 0.0018,
-      depthDisplacement: 0.012,
-      halftoneMix: 0.35,
+      hatchDensity: 62.0,
+      edgeStrength: 1.25,
+      boilAmount: 0.0011,
+      depthDisplacement: 0.01,
+      halftoneMix: 0.18,
       rippleAmount: 1.0,
     },
   },
   {
-    id: 'mid-far-horizon',
-    kind: 'mid-far-horizon',
+    id: 'monolith',
+    kind: 'monolith',
     scene: 'entry-plug',
-    texturePath: '/layers/entry-plug/mid-far-horizon.png',
-    depthMapPath: '/layers/entry-plug/mid-far-horizon.depth.png',
-    z: -8.5,
-    y: -0.6,
-    scale: [22, 12.5],
-    parallaxFactor: [0.24, 0.14],
+    texturePath: '/layers/entry-plug/monolith.png',
+    depthMapPath: '/layers/entry-plug/monolith.depth.png',
+    z: -11.2,
+    y: 0.35,
+    scale: [24, 14],
+    textureSize: [1600, 1000],
+    boilVariants: 3,
+    parallaxFactor: [0.16, 0.1],
     tintToken: 'ink',
     allowRedChannel: false,
     shaderOptions: {
-      hatchDensity: 56.0,
-      edgeStrength: 1.25,
-      boilAmount: 0.0014,
+      hatchDensity: 68.0,
+      edgeStrength: 1.35,
+      boilAmount: 0.001,
       depthDisplacement: 0.014,
-      halftoneMix: 0.15,
+      halftoneMix: 0.12,
       rippleAmount: 0.0,
     },
   },
   {
-    id: 'near-stepping-stones',
-    kind: 'near-stepping-stones',
+    id: 'horizon',
+    kind: 'horizon',
     scene: 'entry-plug',
-    texturePath: '/layers/entry-plug/near-stepping-stones.png',
-    depthMapPath: '/layers/entry-plug/near-stepping-stones.depth.png',
-    z: -4.2,
-    y: -1.65,
-    scale: [15, 9],
-    parallaxFactor: [0.48, 0.25],
+    texturePath: '/layers/entry-plug/horizon.png',
+    depthMapPath: '/layers/entry-plug/horizon.depth.png',
+    z: -8.4,
+    y: -0.5,
+    scale: [23, 13],
+    textureSize: [1600, 900],
+    boilVariants: 3,
+    parallaxFactor: [0.26, 0.14],
     tintToken: 'ink',
     allowRedChannel: false,
     shaderOptions: {
-      hatchDensity: 64.0,
-      edgeStrength: 1.35,
-      boilAmount: 0.0016,
-      depthDisplacement: 0.022,
+      hatchDensity: 58.0,
+      edgeStrength: 1.2,
+      boilAmount: 0.001,
+      depthDisplacement: 0.014,
       halftoneMix: 0.1,
       rippleAmount: 0.0,
     },
   },
   {
-    id: 'mid-pilot',
-    kind: 'mid-pilot',
+    id: 'path',
+    kind: 'path',
     scene: 'entry-plug',
-    texturePath: '/layers/entry-plug/mid-pilot.png',
-    depthMapPath: '/layers/entry-plug/mid-pilot.depth.png',
-    z: -2.4,
-    y: -0.55,
-    scale: [9.5, 9.5],
-    parallaxFactor: [0.62, 0.35],
+    texturePath: '/layers/entry-plug/path.png',
+    depthMapPath: '/layers/entry-plug/path.depth.png',
+    z: -4.2,
+    y: -1.15,
+    scale: [17, 10],
+    textureSize: [1600, 1000],
+    boilVariants: 3,
+    parallaxFactor: [0.52, 0.26],
     tintToken: 'ink',
-    allowRedChannel: true, // Single thin red scarf/band on white cloaked figure
+    allowRedChannel: false,
     shaderOptions: {
-      hatchDensity: 72.0,
-      edgeStrength: 1.5,
-      boilAmount: 0.0018,
-      depthDisplacement: 0.028,
-      halftoneMix: 0.25,
-      rippleAmount: 0.15,
+      hatchDensity: 66.0,
+      edgeStrength: 1.35,
+      boilAmount: 0.0012,
+      depthDisplacement: 0.02,
+      halftoneMix: 0.08,
+      rippleAmount: 0.0,
     },
   },
   {
-    id: 'foreground-debris',
-    kind: 'foreground-debris',
+    id: 'foreground',
+    kind: 'foreground',
     scene: 'entry-plug',
-    texturePath: '/layers/entry-plug/foreground-debris.png',
-    depthMapPath: '/layers/entry-plug/foreground-debris.depth.png',
-    z: 1.4,
-    y: 0.0,
-    scale: [12, 7.5],
-    parallaxFactor: [1.05, 0.55],
+    texturePath: '/layers/entry-plug/foreground.png',
+    depthMapPath: '/layers/entry-plug/foreground.depth.png',
+    z: 1.2,
+    y: -0.1,
+    scale: [13.5, 8.2],
+    textureSize: [1280, 800],
+    boilVariants: 1, // Drop variants on foreground first per brief B5
+    parallaxFactor: [0.95, 0.48],
     tintToken: 'ink',
     allowRedChannel: false,
     hideOnMobile: true,
     shaderOptions: {
-      hatchDensity: 52.0,
+      hatchDensity: 56.0,
       edgeStrength: 1.4,
-      boilAmount: 0.002,
-      depthDisplacement: 0.032,
+      boilAmount: 0.0012,
+      depthDisplacement: 0.025,
       halftoneMix: 0.0,
       rippleAmount: 0.0,
     },

@@ -40,17 +40,18 @@ const postFragment = /* glsl */ `
   }
 
   void main() {
-    // Faint paper grain across the entire viewport (kept subtle so page reads clean & white)
+    // Faint paper fiber grain across the viewport (<= 2.5% strength so page reads bright white)
     float tick = floor(uTime * 8.0) * (1.0 - uReducedMotion);
     float g = hash21(vUv * 550.0 + vec2(tick * 0.17));
-    float grainAlpha = step(0.985, g) * 0.055;
+    float grainAlpha = step(0.988, g) * 0.024;
 
-    // Ragged ink-bleed wipe along top/bottom viewport edges during chapter transitions
+    // Crisp pure-ink stipple/splatter along top/bottom viewport edges during chapter transitions (alpha = 1.0, never grey)
     float edgeDist = min(vUv.y, 1.0 - vUv.y);
-    float n = noise(vUv * vec2(14.0, 6.0) + vec2(tick * 0.05, 0.0));
-    float bleedMask = step(edgeDist * 3.8, uBleed * n) * (1.0 - uReducedMotion);
+    float n = noise(vUv * vec2(42.0, 18.0) + vec2(tick * 0.05, 0.0));
+    float stipple = step(0.68, hash21(floor(vUv * vec2(320.0, 180.0))));
+    float bleedMask = step(edgeDist * 9.5, uBleed * n) * stipple * (1.0 - uReducedMotion);
 
-    float alpha = clamp(max(grainAlpha, bleedMask * 0.55), 0.0, 1.0);
+    float alpha = clamp(max(grainAlpha, bleedMask), 0.0, 1.0);
     gl_FragColor = vec4(uColorInk, alpha);
   }
 `;

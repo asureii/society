@@ -8,7 +8,6 @@ export const SoundToggle: React.FC = () => {
   const activeChapter = useAppStore((s) => s.activeChapter);
   const ambientRef = useRef<HTMLAudioElement | null>(null);
 
-  // Hooks for optional user-supplied audio files in PROFILE.audio
   useEffect(() => {
     if (!PROFILE.audio.ambientUrl) return;
     if (!ambientRef.current) {
@@ -18,9 +17,7 @@ export const SoundToggle: React.FC = () => {
       ambientRef.current = audio;
     }
     if (audioEnabled) {
-      ambientRef.current.play().catch(() => {
-        // Ignore autoplay restrictions
-      });
+      ambientRef.current.play().catch(() => {});
     } else {
       ambientRef.current.pause();
     }
@@ -34,30 +31,33 @@ export const SoundToggle: React.FC = () => {
   }, [activeChapter, audioEnabled]);
 
   return (
-    <div className="fixed bottom-4 right-4 md:bottom-6 md:right-8 z-40 pointer-events-auto flex items-end gap-3">
+    <div
+      data-hud-element="sound-toggle"
+      className="fixed bottom-4 right-4 md:bottom-5 md:right-6 z-40 pointer-events-auto flex items-end"
+    >
       <button
         type="button"
         onClick={toggleAudio}
         aria-pressed={audioEnabled}
         aria-label={audioEnabled ? 'Mute sound effects and ambient audio' : 'Enable sound effects and ambient audio'}
-        className="group flex items-center gap-2.5 bg-paper-pure border-2 border-ink px-3 py-2 shadow-[3px_3px_0px_var(--ink)] hover:bg-ink hover:text-paper-pure transition-colors cursor-pointer"
+        className="group flex items-center gap-2 bg-paper-pure border-2 border-ink px-2.5 py-1.5 shadow-[3px_3px_0px_var(--ink)] hover:bg-ink hover:text-paper-pure transition-colors cursor-pointer"
       >
-        <div className="flex items-end gap-[3px] h-3.5" aria-hidden="true">
-          {[0.45, 0.95, 0.65, 1.0, 0.55].map((barHeight, i) => (
+        <div className="flex items-end gap-[2px] h-3" aria-hidden="true">
+          {[0.45, 0.95, 0.65, 1.0].map((barHeight, i) => (
             <span
               key={i}
               className={`w-[3px] transition-all duration-200 ${
                 audioEnabled ? 'bg-red animate-pulse' : 'bg-ink group-hover:bg-paper-pure'
               }`}
               style={{
-                height: audioEnabled ? `${Math.round(barHeight * 14)}px` : '4px',
+                height: audioEnabled ? `${Math.round(barHeight * 12)}px` : '4px',
                 animationDelay: `${i * 110}ms`,
               }}
             />
           ))}
         </div>
-        <span className="font-mono text-[10px] font-bold tracking-widest uppercase">
-          {audioEnabled ? 'AUDIO // ON' : 'AUDIO // OFF'}
+        <span className="font-mono text-xs font-bold tracking-wider uppercase">
+          {audioEnabled ? 'ON' : 'OFF'}
         </span>
       </button>
     </div>

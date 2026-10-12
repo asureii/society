@@ -1,7 +1,7 @@
 import React from 'react';
 import { PROFILE } from '../config/profile';
 import { useAppStore } from '../store/useAppStore';
-import { ChapterCard } from '../ui/ChapterCard';
+import { CaptionBox } from '../ui/CaptionBox';
 
 export const Contact: React.FC = () => {
   const scrollToTarget = useAppStore((s) => s.scrollToTarget);
@@ -16,30 +16,30 @@ export const Contact: React.FC = () => {
 
   const contactItems = [
     {
-      label: 'GITHUB // REPOSITORIES',
-      code: 'CH-07.A',
+      label: 'GITHUB',
+      code: '01',
       href: PROFILE.links.github,
       value: PROFILE.githubUsername,
     },
     {
-      label: 'DISCORD // DIRECT COMM',
-      code: 'CH-07.B',
+      label: 'DISCORD',
+      code: '02',
       href: PROFILE.links.discord,
       value: PROFILE.discordUserId,
     },
     {
-      label: 'ELECTRONIC MAIL // TRANSMISSION',
-      code: 'CH-07.C',
+      label: 'EMAIL',
+      code: '03',
       href: PROFILE.links.email,
       value: PROFILE.links.email.replace('mailto:', ''),
     },
     ...(PROFILE.links.linkedin
       ? [
           {
-            label: 'LINKEDIN // PERSONNEL RECORD',
-            code: 'CH-07.D',
+            label: 'LINKEDIN',
+            code: '04',
             href: PROFILE.links.linkedin,
-            value: 'LINKEDIN PROFILE',
+            value: 'PROFILE LINK',
           },
         ]
       : []),
@@ -49,80 +49,97 @@ export const Contact: React.FC = () => {
     <section
       id="chapter-contact"
       aria-labelledby="heading-contact"
-      className="relative min-h-[115vh] w-full px-6 sm:px-12 md:px-20 py-28 pointer-events-none flex flex-col justify-between"
+      style={{ paddingTop: 'calc(var(--hud-top, 64px) + 24px)' }}
+      className="relative min-h-[185vh] w-full px-5 sm:px-10 md:px-14 pb-14 pointer-events-none flex flex-col justify-between"
     >
-      <div className="w-full max-w-6xl mx-auto space-y-8">
-        <div id="heading-contact" className="pointer-events-auto">
-          <ChapterCard
-            number="07"
-            title="FINAL PANEL // MONOLITH"
-            jpSubtitle="漆 // 終局・通信"
-            alertText="DESTINATION REACHED"
-          />
-        </div>
-
-        {/* Full-bleed manga communication panel */}
-        <div className="pointer-events-auto bg-paper-pure border-4 border-ink p-6 sm:p-10 shadow-[8px_8px_0px_var(--ink)]">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b-2 border-ink pb-4 mb-6">
+      {/* Beat 1: Scene Beat Approach — Single Right Side Panel (<= 35vw) positioned OUTSIDE the Left/Center Stage Focal Rect */}
+      <div className="w-full min-h-[82vh] flex flex-col justify-center md:items-end">
+        <div
+          data-content-box="contact-side-panel"
+          className="pointer-events-auto w-full md:max-w-[35vw] md:mr-8 bg-paper-pure border-3 border-ink p-5 shadow-[5px_5px_0px_var(--ink)] space-y-4"
+        >
+          <div className="flex items-center justify-between border-b-2 border-red pb-2">
             <div>
-              <span className="font-mono text-xs font-bold tracking-widest uppercase text-red block">
-                MONOLITH INTERFACE // OPEN CHANNEL
+              <span className="font-display text-xs tracking-[0.18em] uppercase text-red block">
+                CHAPTER 07 // MONOLITH
               </span>
-              <h3 className="font-serif font-bold text-2xl sm:text-4xl text-ink uppercase mt-1">
-                INITIATE DIRECT TRANSMISSION
-              </h3>
+              <h2
+                id="heading-contact"
+                className="font-serif font-bold text-2xl text-ink uppercase leading-none mt-0.5"
+              >
+                OPEN CHANNEL
+              </h2>
             </div>
-            <span className="font-mono text-xs font-bold bg-ink text-paper-pure px-3 py-1 self-start md:self-auto">
-              SIGNAL STRENGTH // 100%
+            <span
+              className="font-serif text-xs tracking-widest border border-ink px-2 py-0.5"
+              aria-hidden="true"
+            >
+              通信
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-2.5">
             {contactItems.map((item) => (
               <a
                 key={item.code}
                 href={item.href}
                 target={item.href.startsWith('mailto:') ? undefined : '_blank'}
                 rel={item.href.startsWith('mailto:') ? undefined : 'noreferrer'}
-                className="group border-2 border-ink p-4 bg-paper hover:bg-ink hover:text-paper-pure transition-colors flex flex-col justify-between gap-2"
+                className="group border-2 border-ink p-3 bg-paper hover:bg-ink hover:text-paper-pure transition-colors flex items-center justify-between gap-3"
               >
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-[10px] font-bold tracking-widest uppercase opacity-75">
+                <div className="min-w-0">
+                  <span className="font-mono text-xs font-bold tracking-wider uppercase block">
                     {item.code} // {item.label}
                   </span>
-                  <span className="font-mono text-xs font-bold text-red group-hover:text-paper-pure">
-                    ↗
+                  <span className="font-serif font-bold text-base truncate block mt-0.5">
+                    {item.value}
                   </span>
                 </div>
-                <div className="font-serif font-bold text-lg truncate">{item.value}</div>
+                <span className="font-mono text-sm font-bold text-red group-hover:text-paper-pure shrink-0">
+                  ↗
+                </span>
               </a>
             ))}
           </div>
         </div>
 
-        {/* Black "THE END?" closing card with white type and red accent, plus smooth return-to-start rewind */}
-        <div className="pointer-events-auto bg-ink text-paper-pure border-4 border-ink p-8 sm:p-12 shadow-[8px_8px_0px_var(--red)] flex flex-col md:flex-row items-start md:items-end justify-between gap-6">
+        <div className="pointer-events-auto self-end md:mr-8 mt-4">
+          <CaptionBox
+            code="CH.07 // MONOLITH"
+            text="AT THE FOOT OF THE TWIN MONOLITH. OPEN A DIRECT CHANNEL."
+          />
+        </div>
+      </div>
+
+      {/* Beat 2: Final Closing Card at 100% scroll — Black "THE END?" card with white type, red accent, and smooth return-to-start */}
+      <div className="w-full min-h-[75vh] flex flex-col justify-end">
+        <div
+          data-content-box="contact-final-card"
+          data-allow-focal="true"
+          className="pointer-events-auto w-full max-w-5xl mx-auto bg-ink text-paper-pure border-4 border-ink p-8 sm:p-10 shadow-[6px_6px_0px_var(--red)] flex flex-col md:flex-row items-start md:items-end justify-between gap-6"
+        >
           <div>
-            <div className="inline-block bg-red text-paper-pure font-mono text-xs font-bold tracking-[0.25em] uppercase px-2.5 py-1 mb-3">
+            <div className="inline-block bg-red text-paper-pure font-mono text-xs font-bold tracking-[0.22em] uppercase px-2.5 py-1 mb-3">
               EPILOGUE // 終劇
             </div>
-            <h2 className="font-serif font-bold text-4xl sm:text-6xl tracking-tight uppercase leading-none">
+            <h3 className="font-serif font-bold text-4xl sm:text-5xl tracking-tight uppercase leading-none">
               THE END?
-            </h2>
-            <p className="font-mono text-xs sm:text-sm tracking-wider uppercase mt-3 opacity-90">
-               TO BE CONTINUED IN NEXT DEPLOYMENT — {PROFILE.fullName}
+            </h3>
+            <p className="font-mono text-xs sm:text-sm tracking-wider uppercase mt-3">
+              TO BE CONTINUED IN NEXT DEPLOYMENT — {PROFILE.fullName}
             </p>
           </div>
 
           <button
             type="button"
             onClick={handleReturnToStart}
-            className="bg-paper-pure text-ink font-display text-sm tracking-[0.2em] uppercase px-6 py-3 border-2 border-paper-pure hover:bg-red hover:text-paper-pure hover:border-red transition-colors cursor-pointer shrink-0"
+            className="bg-paper-pure text-ink font-display text-xs sm:text-sm tracking-[0.18em] uppercase px-5 py-3 border-2 border-paper-pure hover:bg-red hover:text-paper-pure hover:border-red transition-colors cursor-pointer shrink-0"
           >
-            REWIND TO ENTRY PLUG // 壱へ戻る ↑
+            REWIND TO START ↑
           </button>
         </div>
       </div>
     </section>
   );
 };
+

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { PROFILE } from '../config/profile';
+import { generateAllSceneArt } from '../scene/art';
 import { useAppStore } from '../store/useAppStore';
 
 export const Loader: React.FC = () => {
@@ -8,29 +9,36 @@ export const Loader: React.FC = () => {
   const setLoadProgress = useAppStore((s) => s.setLoadProgress);
   const setIsLoaded = useAppStore((s) => s.setIsLoaded);
   const reducedMotion = useAppStore((s) => s.reducedMotion);
+  const isMobile = useAppStore((s) => s.isMobile);
   const [hidden, setHidden] = useState(false);
 
   useEffect(() => {
-    let raf: number;
-    let current = 0;
+    let cancelled = false;
+    const singleVariantOnly = reducedMotion || isMobile;
 
-    const tick = () => {
-      current += reducedMotion ? 20 : 3.2;
-      if (current >= 100) {
-        setLoadProgress(100);
-        setTimeout(() => {
-          setIsLoaded(true);
-          setTimeout(() => setHidden(true), reducedMotion ? 100 : 650);
-        }, 180);
-        return;
-      }
-      setLoadProgress(Math.min(99, Math.floor(current)));
-      raf = requestAnimationFrame(tick);
+    void generateAllSceneArt({
+      singleVariantOnly,
+      onProgress: (pct) => {
+        if (!cancelled) {
+          setLoadProgress(pct);
+        }
+      },
+    }).then(() => {
+      if (cancelled) return;
+      setLoadProgress(100);
+      window.setTimeout(() => {
+        if (cancelled) return;
+        setIsLoaded(true);
+        window.setTimeout(() => {
+          if (!cancelled) setHidden(true);
+        }, reducedMotion ? 80 : 500);
+      }, 120);
+    });
+
+    return () => {
+      cancelled = true;
     };
-
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [reducedMotion, setIsLoaded, setLoadProgress]);
+  }, [isMobile, reducedMotion, setIsLoaded, setLoadProgress]);
 
   if (hidden) return null;
 
@@ -39,27 +47,26 @@ export const Loader: React.FC = () => {
       role="status"
       aria-live="polite"
       aria-label="Loading Entry Plug Dossier"
-      className={`fixed inset-0 z-50 bg-paper flex flex-col items-center justify-center p-6 transition-transform duration-700 ease-in-out ${
-        isLoaded ? '-translate-x-full skew-x-3 pointer-events-none' : 'translate-x-0'
+      className={`fixed inset-0 z-50 bg-paper flex flex-col items-center justify-center p-6 transition-transform duration-500 ease-in-out ${
+        isLoaded ? '-translate-x-full pointer-events-none' : 'translate-x-0'
       }`}
     >
       {/* Manga page-turn right border shadow */}
-      <div className="absolute top-0 bottom-0 right-0 w-4 bg-ink" />
+      <div className="absolute top-0 bottom-0 right-0 w-3 bg-ink" />
 
-      <div className="relative w-full max-w-xl bg-paper-pure border-4 border-ink p-6 sm:p-10 shadow-[8px_8px_0px_var(--ink)]">
+      <div className="relative w-full max-w-xl bg-paper-pure border-3 border-ink p-6 sm:p-8 shadow-[6px_6px_0px_var(--ink)]">
         {/* Top classification bar */}
-        <div className="flex items-center justify-between border-b-2 border-ink pb-3 mb-6">
+        <div className="flex items-center justify-between border-b-2 border-ink pb-3 mb-5">
           <span className="font-mono text-xs font-bold tracking-widest uppercase">
-            CHAPTER 00 // INITIALIZATION
+            CHAPTER 00 // INK CALIBRATION
           </span>
-          <span className="bg-red text-paper-pure font-mono text-[10px] font-bold px-2 py-0.5 tracking-widest">
-            INK CALIBRATION
+          <span className="bg-red text-paper-pure font-mono text-xs font-bold px-2 py-0.5 tracking-widest">
+            STAGE INIT
           </span>
         </div>
 
-        {/* SVG Ink-draw illustration preview */}
-        <div className="relative h-40 border-2 border-ink mb-6 overflow-hidden bg-paper flex items-center justify-center">
-          <div className="absolute inset-0 pattern-hatch opacity-20" />
+        {/* SVG Ink-draw illustration preview: Stepping stones leading to Twin Monolith + Red Orb (No Pilot Figure) */}
+        <div className="relative h-36 border-2 border-ink mb-5 overflow-hidden bg-paper flex items-center justify-center">
           <svg
             className="w-full h-full p-4"
             viewBox="0 0 400 120"
@@ -68,48 +75,47 @@ export const Loader: React.FC = () => {
           >
             {/* Horizon line drawing in */}
             <line
-              x1="10"
-              y1="95"
-              x2={10 + (380 * loadProgress) / 100}
-              y2="95"
+              x1="15"
+              y1="88"
+              x2={15 + (370 * loadProgress) / 100}
+              y2="88"
               stroke="var(--ink)"
-              strokeWidth="3"
+              strokeWidth="2.5"
             />
-            {/* Monolith */}
-            <rect
-              x="290"
-              y="22"
-              width="28"
-              height="73"
-              fill="var(--paper-pure)"
-              stroke="var(--ink)"
-              strokeWidth="3"
-              strokeDasharray={220}
-              strokeDashoffset={220 - (220 * loadProgress) / 100}
-            />
-            {/* Red Orb */}
+            {/* Red Orb at Twin Monolith Base */}
             <circle
-              cx="304"
-              cy="48"
-              r={Math.max(2, (24 * loadProgress) / 100)}
+              cx="260"
+              cy="56"
+              r={Math.max(2, (22 * loadProgress) / 100)}
               fill="var(--red)"
               stroke="var(--ink)"
               strokeWidth="2.5"
             />
-            {/* Cloaked Pilot Silhouette */}
+            {/* Twin Monolith Slabs */}
             <polygon
-              points="110,42 128,95 92,95"
+              points="232,18 250,16 252,88 230,88"
               fill="var(--paper-pure)"
               stroke="var(--ink)"
-              strokeWidth="3"
+              strokeWidth="2.5"
             />
-            <line
-              x1="102"
-              y1="56"
-              x2="122"
-              y2="53"
-              stroke="var(--red)"
-              strokeWidth="3"
+            <polygon
+              points="266,26 282,24 284,88 264,88"
+              fill="var(--paper-pure)"
+              stroke="var(--ink)"
+              strokeWidth="2.5"
+            />
+            {/* Stepping Stones Receding */}
+            <polygon
+              points="155,108 235,108 228,101 162,101"
+              fill="var(--paper-pure)"
+              stroke="var(--ink)"
+              strokeWidth="2"
+            />
+            <polygon
+              points="185,98 242,98 237,93 190,93"
+              fill="var(--paper-pure)"
+              stroke="var(--ink)"
+              strokeWidth="2"
             />
           </svg>
         </div>
@@ -125,8 +131,8 @@ export const Loader: React.FC = () => {
             </h1>
           </div>
           <div className="text-right">
-            <span className="font-mono text-[10px] tracking-widest uppercase block text-ink">
-              SYNC RATIO
+            <span className="font-mono text-xs tracking-widest uppercase block text-ink">
+              INK SYNTHESIS
             </span>
             <span className="font-display text-4xl sm:text-5xl text-red leading-none">
               {String(loadProgress).padStart(3, '0')}%
@@ -135,7 +141,7 @@ export const Loader: React.FC = () => {
         </div>
 
         {/* Progress Bar */}
-        <div className="mt-5 w-full h-3 border-2 border-ink bg-paper p-0.5">
+        <div className="mt-4 w-full h-3 border-2 border-ink bg-paper p-0.5">
           <div
             className="h-full bg-red transition-all duration-75"
             style={{ width: `${loadProgress}%` }}

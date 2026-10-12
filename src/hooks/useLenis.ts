@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import Lenis from 'lenis';
+import { STAGE_CONFIG } from '../config/stage';
 import { gsap, ScrollTrigger } from '../lib/gsap';
-import { CHAPTERS, useAppStore } from '../store/useAppStore';
+import { CHAPTERS, useAppStore, type ChapterId } from '../store/useAppStore';
 import { clamp } from '../lib/math';
 
 export function useLenis(): void {
@@ -18,52 +19,64 @@ export function useLenis(): void {
     });
     lenisRef.current = lenis;
 
-    // Sync Lenis scroll events to GSAP ScrollTrigger
     lenis.on('scroll', ScrollTrigger.update);
 
-    // Drive Lenis from gsap.ticker
     const updateTicker = (time: number) => {
       lenis.raf(time * 1000);
     };
     gsap.ticker.add(updateTicker);
     gsap.ticker.lagSmoothing(0);
 
-    // Register global scroll trigger to compute progress, active chapter, and chapter transition ink-bleed
+    // Inspect real DOM chapter sections to determine active chapter, page-beat opacity, and transition ink-bleed
     const masterTrigger = ScrollTrigger.create({
       trigger: document.documentElement,
       start: 'top top',
       end: 'bottom bottom',
       onUpdate: (self) => {
         const p = clamp(self.progress, 0, 1);
-        const totalChapters = CHAPTERS.length;
-        const scaled = p * totalChapters;
-        const idx = clamp(Math.floor(scaled), 0, totalChapters - 1);
-        const chapterProgress = scaled - idx;
+        const vh = window.innerHeight || 1;
+        const viewportCenterY = vh * 0.45;
 
-        // Compute ink-bleed pulse near chapter boundaries (when crossing from one chapter to the next)
+        let detectedChapter: ChapterId = 'cover';
+        let isPageOpaque = false;
         let bleed = 0;
-        if (!reducedMotion) {
-          if (chapterProgress > 0.86) {
-            bleed = (chapterProgress - 0.86) / 0.14;
-          } else if (chapterProgress < 0.14 && idx > 0) {
-            bleed = 1.0 - chapterProgress / 0.14;
+
+        for (const ch of CHAPTERS) {
+          const el = document.getElementById(`chapter-${ch.id}`);
+          if (!el) continue;
+          const rect = el.getBoundingClientRect();
+          if (rect.top <= viewportCenterY && rect.bottom >= viewportCenterY) {
+            detectedChapter = ch.id;
+            const mode = STAGE_CONFIG[ch.id].mode;
+            if (mode === 'page') {
+              // Page beat is fully covering the viewport when its top is above HUD and bottom is below viewport
+              if (rect.top <= 72 && rect.bottom >= vh - 32) {
+                isPageOpaque = true;
+              }
+              // Ink-bleed pulse near the entry/exit wipe of a page beat
+              const distTop = Math.abs(rect.top);
+              const distBot = Math.abs(rect.bottom - vh);
+              const edgeProximity = Math.min(distTop, distBot);
+              if (!reducedMotion && edgeProximity < vh * 0.28) {
+                bleed = 1.0 - edgeProximity / (vh * 0.28);
+              }
+            }
+            break;
           }
         }
 
-        setScrollState(p, CHAPTERS[idx].id, clamp(bleed, 0, 1));
+        setScrollState(p, detectedChapter, clamp(bleed, 0, 1), isPageOpaque);
       },
     });
 
-    // Expose programmatic eased scrollTo helper for Nav and Return-To-Start
     const scrollToFn = (target: string | number) => {
       lenis.scrollTo(target, {
-        duration: reducedMotion ? 0 : 1.35,
+        duration: reducedMotion ? 0 : 1.25,
         easing: (t: number) => 1 - Math.pow(1 - t, 4),
       });
     };
     setScrollToTarget(scrollToFn);
 
-    // Keyboard navigation support (Space / PageDown / PageUp / Arrows)
     const handleKeyDown = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;

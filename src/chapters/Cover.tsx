@@ -1,100 +1,94 @@
 import React from 'react';
 import { PROFILE } from '../config/profile';
-import { CaptionBox } from '../ui/CaptionBox';
+import { clamp } from '../lib/math';
 import { useAppStore } from '../store/useAppStore';
+import { CaptionBox } from '../ui/CaptionBox';
 
 export const Cover: React.FC = () => {
+  const scrollProgress = useAppStore((s) => s.scrollProgress);
+  const reducedMotion = useAppStore((s) => s.reducedMotion);
   const scrollToTarget = useAppStore((s) => s.scrollToTarget);
+
+  // Parallax the title faster than the scene so it slides cleanly out during the first ~15% of scroll (Part C2)
+  const slideOutFactor = reducedMotion ? 0 : clamp(scrollProgress / 0.14, 0, 1.5);
+  const translateY = -slideOutFactor * 420;
+  const nameParts = PROFILE.fullName.split(' '); // ["JONATHAN", "ERICK", "CHRISTOVANDY"]
 
   return (
     <section
       id="chapter-cover"
       aria-labelledby="heading-cover"
-      className="relative min-h-[115vh] w-full flex flex-col justify-between px-6 sm:px-12 md:px-20 pt-24 pb-16 pointer-events-none"
+      className="relative min-h-[118vh] w-full pointer-events-none"
     >
-      {/* Top Row: Manga Cover Title Block & Vertical Japanese Subtitle */}
-      <div className="w-full max-w-6xl mx-auto flex flex-col md:flex-row items-start justify-between gap-6">
-        <div className="pointer-events-auto bg-paper-pure border-3 border-ink p-5 sm:p-7 shadow-[6px_6px_0px_var(--ink)] max-w-2xl">
-          <div className="flex items-center justify-between gap-4 border-b-2 border-ink pb-2 mb-3">
-            <span className="font-mono text-[11px] font-bold tracking-[0.22em] uppercase text-ink">
-              CHAPTER 01 // THE ENTRY PLUG
-            </span>
-            <span className="bg-ink text-paper-pure font-mono text-[10px] font-bold px-2 py-0.5 tracking-widest">
-              VOL. 01
-            </span>
-          </div>
-
-          <h1
-            id="heading-cover"
-            className="font-serif font-bold text-3xl sm:text-5xl lg:text-6xl tracking-tight leading-[0.98] text-ink uppercase"
+      {/* First 100vh viewport frame: places bottom-left hero block cleanly inside the initial 0% scroll view */}
+      <div className="h-screen w-full flex flex-col justify-end px-5 sm:px-10 md:px-14 pb-10 md:pb-12">
+        <div className="w-full flex flex-col md:flex-row items-start md:items-end justify-between gap-6">
+          <div
+            data-content-box="hero-title"
+            style={{
+              transform: `translate3d(0, ${translateY.toFixed(1)}px, 0)`,
+            }}
+            className={`w-full md:max-w-[27vw] max-h-[34vh] md:max-h-none flex flex-col items-start transition-none ${
+              slideOutFactor >= 0.95 ? 'pointer-events-none invisible' : 'pointer-events-auto'
+            }`}
           >
-            {PROFILE.fullName}
-          </h1>
-
-          {/* Single bold red slash / underline required by brief */}
-          <div className="w-full h-2 bg-red my-3.5" aria-hidden="true" />
-
-          <p className="font-display text-sm sm:text-base tracking-[0.16em] uppercase text-ink">
-            {PROFILE.roleTagline}
-          </p>
-
-          <div className="mt-4 pt-3 border-t border-ink/15 flex flex-wrap items-center gap-3">
-            <a
-              href="#chapter-work"
-              onClick={(e) => {
-                e.preventDefault();
-                scrollToTarget?.('#chapter-work');
-              }}
-              className="bg-ink text-paper-pure font-display text-xs tracking-[0.2em] uppercase px-4 py-2 border-2 border-ink hover:bg-red hover:border-red transition-colors"
+            {/* Large Mincho stacked over 3 lines with paper-colored stroke halo (NO filled box per C2) */}
+            <h1
+              id="heading-cover"
+              className="paper-halo font-serif font-bold text-3xl sm:text-4xl lg:text-5xl tracking-tight leading-[0.96] text-ink uppercase flex flex-col"
             >
-              INSPECT THE WORK // 参
-            </a>
-            <a
-              href="#chapter-about"
-              onClick={(e) => {
-                e.preventDefault();
-                scrollToTarget?.('#chapter-about');
-              }}
-              className="bg-paper-pure text-ink font-mono text-xs font-bold tracking-wider uppercase px-3.5 py-2 border-2 border-ink hover:bg-ink hover:text-paper-pure transition-colors"
-            >
-              PERSONNEL DOSSIER
-            </a>
+              <span>{nameParts[0] ?? 'JONATHAN'}</span>
+              <span>{nameParts[1] ?? 'ERICK'}</span>
+              <span>{nameParts.slice(2).join(' ') || 'CHRISTOVANDY'}</span>
+            </h1>
+
+            {/* Thin red rule */}
+            <div className="w-28 sm:w-36 h-[3px] bg-red my-2.5" aria-hidden="true" />
+
+            {/* Small-caps tagline */}
+            <p className="paper-halo-sm font-display text-xs sm:text-sm tracking-[0.16em] uppercase text-ink leading-snug">
+              {PROFILE.roleTagline}
+            </p>
+
+            {/* Two compact action buttons */}
+            <div className="mt-3 flex flex-wrap items-center gap-2.5">
+              <a
+                href="#chapter-work"
+                onClick={(e) => {
+                  e.preventDefault();
+                  scrollToTarget?.('#chapter-work');
+                }}
+                className="bg-ink text-paper-pure font-display text-xs tracking-[0.16em] uppercase px-3.5 py-1.5 border-2 border-ink hover:bg-red hover:border-red transition-colors"
+              >
+                THE WORK
+              </a>
+              <a
+                href="#chapter-about"
+                onClick={(e) => {
+                  e.preventDefault();
+                  scrollToTarget?.('#chapter-about');
+                }}
+                className="bg-paper-pure text-ink font-mono text-xs font-bold tracking-wider uppercase px-3 py-1.5 border-2 border-ink hover:bg-ink hover:text-paper-pure transition-colors"
+              >
+                DOSSIER
+              </a>
+            </div>
           </div>
-        </div>
 
-        {/* Vertical Japanese decorative stamp */}
-        <div
-          aria-hidden="true"
-          className="hidden md:flex flex-col items-center bg-paper-pure border-2 border-ink px-3 py-4 shadow-[4px_4px_0px_var(--ink)] select-none"
-        >
-          <span className="w-2.5 h-2.5 bg-red mb-3" />
-          <span
-            className="font-serif font-bold text-lg tracking-[0.3em] text-ink"
-            style={{ writingMode: 'vertical-rl' }}
+          {/* Single scene-beat caption box on bottom-right (max 280px wide, auto-dismisses after 4s per C4) */}
+          <div
+            className={`pointer-events-auto self-end md:mr-10 ${
+              slideOutFactor >= 0.95 ? 'invisible pointer-events-none' : ''
+            }`}
           >
-            {PROFILE.jpDecorativeTitle}
-          </span>
-        </div>
-      </div>
-
-      {/* Bottom Row: Center stays open so the 2.5D cloaked figure and red orb shine; bottom-right holds narrative caption */}
-      <div className="w-full max-w-6xl mx-auto flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4 mt-auto pt-32">
-        <div className="pointer-events-auto bg-paper-pure border-2 border-ink px-3 py-2 shadow-[3px_3px_0px_var(--ink)]">
-          <div className="font-mono text-[10px] tracking-widest uppercase text-ink">
-            SCENE 01 // PERSPECTIVE LOCK
+            <CaptionBox
+              code="CH.01 // APPROACH"
+              text={PROFILE.coverCaption}
+            />
           </div>
-          <div className="font-mono text-xs font-bold text-ink">
-            TARGET: MONOLITH &amp; RED ORB [Z = -11.5m]
-          </div>
-        </div>
-
-        <div className="pointer-events-auto self-end">
-          <CaptionBox
-            code="CAPTION // 01 : PILOTING"
-            text={PROFILE.coverCaption}
-          />
         </div>
       </div>
     </section>
   );
 };
+

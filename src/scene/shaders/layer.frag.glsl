@@ -1,17 +1,15 @@
 /**
- * MANGA INK & HATCHING FRAGMENT SHADER (src/scene/shaders/layer.frag.glsl)
+ * HAND-INKED MANGA FRAGMENT SHADER (src/scene/shaders/layer.frag.glsl)
  *
- * Implements:
- * 1. Line-boil (quantized 10fps UV jitter so inked edges feel hand-drawn)
- * 2. Depth-map-based UV parallax displacement ("pseudo-3D wiggle")
- * 3. Subtle ripple displacement for the distant Red Orb focal point
- * 4. Sobel / gradient edge detection for crisp ink outlines
- * 5. Luminance-driven parallel hatching + cross-hatching + halftone dots
- * 6. Paper grain noise & ink-bleed chapter transition dissolve
- * 7. STRICT PALETTE SAFEGUARD: Quantizes all output strictly to:
- *    - uColorPaper (#FAFAF8)
- *    - uColorInk   (#0A0A0A)
- *    - uColorRed   (#D4141C) — only when uAllowRed > 0.5
+ * Refinements per Part B5 & B6:
+ * 1. 3-Variant Line-Boil: Cycles between uTex0, uTex1, uTex2 via `uBoilFrame` (stepped at ~9fps).
+ * 2. Irregular Ink Threshold: `ink = smoothstep(t - w, t + w, lum + (noise(uv * scale) - 0.5) * 0.08)`
+ *    so inked edges are ragged and organic.
+ * 3. Ink Pooling: 4-tap neighbor darkening where lines meet or intersect.
+ * 4. Print Misregistration: Samples the Red Orb plate with `uRedOffset` (2–3px offset that drifts slightly with scroll).
+ * 5. Paper Fiber Noise: <= 3% strength on white paper only so the page stays bright white.
+ * 6. Gentle Jittered Shader Hatching: Only fills unauthored mid-tones so it never fights the canvas brush hatching.
+ * 7. Strict 3-Color Palette Quantization Safeguard: Outputs strictly uColorPaper, uColorInk, or uColorRed.
  */
 
 precision highp float;
@@ -19,28 +17,30 @@ precision highp float;
 varying vec2 vUv;
 varying vec3 vWorldPos;
 
-uniform sampler2D uTexture;
+uniform sampler2D uTex0;
+uniform sampler2D uTex1;
+uniform sampler2D uTex2;
 uniform sampler2D uDepthMap;
 
+uniform int uBoilFrame;          // 0, 1, or 2 cycled at ~9fps on CPU
 uniform float uTime;
 uniform vec2 uMouse;             // Damped mouse/gyro [-1, 1]
 uniform float uScrollProgress;   // Global scroll [0, 1]
 uniform float uTransitionBleed;  // Chapter transition ink-bleed [0, 1]
 uniform float uReducedMotion;    // 1.0 when prefers-reduced-motion is active
 
-uniform float uHatchDensity;     // Frequency of hatching lines
-uniform float uEdgeStrength;     // Multiplier for Sobel outline detection
-uniform float uBoilAmount;       // Amplitude of 10fps hand-drawn line boil
+uniform float uHatchDensity;     // Frequency of gentle fallback shader hatching
+uniform float uEdgeStrength;     // Multiplier for 4-tap ink pooling
+uniform float uBoilAmount;       // Micro UV boil jitter
 uniform float uDepthDisplace;    // Strength of depth-map UV wiggle
-uniform float uHalftoneMix;      // Blend factor for halftone mid-tone dots
-uniform float uRippleAmount;     // 1.0 on Red Orb layer for subtle heat/LCL ripple
+uniform float uRippleAmount;     // 1.0 on Red Orb layer for subtle LCL/heat ripple
 uniform float uAllowRed;         // 1.0 if this layer is permitted to output --red
+uniform vec2 uRedOffset;         // Print misregistration offset in UV space (2–3px + slight scroll drift)
 
-uniform vec3 uColorPaper;        // #FAFAF8 normalized
-uniform vec3 uColorInk;          // #0A0A0A normalized
-uniform vec3 uColorRed;          // #D4141C normalized
+uniform vec3 uColorPaper;        // Warm white paper token
+uniform vec3 uColorInk;          // Deep ink black token
+uniform vec3 uColorRed;          // Signal red accent token
 
-// 2D hash & value noise for paper grain, line boil, and ragged ink-bleed
 float hash21(vec2 p) {
   p = fract(p * vec2(234.34, 435.345));
   p += dot(p, p + 34.23);
@@ -58,104 +58,112 @@ float valueNoise(vec2 st) {
   return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
 }
 
-// Luminance-driven parallel hatching + cross-hatching
-float computeHatching(vec2 uv, float luma, float density) {
-  // Rotate coordinates -45 deg for primary parallel hatching
-  float c = 0.70710678;
-  vec2 rot1 = vec2(c * uv.x - c * uv.y, c * uv.x + c * uv.y) * density;
-  vec2 rot2 = vec2(c * uv.x + c * uv.y, -c * uv.x + c * uv.y) * density;
-
-  float wave1 = abs(fract(rot1.x) - 0.5) * 2.0;
-  float wave2 = abs(fract(rot2.x) - 0.5) * 2.0;
-
-  // Darker luminance (< 0.75) triggers primary hatching; very dark (< 0.42) triggers cross-hatching
-  float primaryInk = 1.0 - step(clamp((0.78 - luma) * 1.45, 0.0, 0.85), wave1);
-  float crossInk = 1.0 - step(clamp((0.42 - luma) * 1.65, 0.0, 0.85), wave2);
-
-  return clamp(max(primaryInk, crossInk), 0.0, 1.0);
+vec4 sampleBoilVariant(vec2 uv) {
+  if (uBoilFrame == 1) {
+    return texture2D(uTex1, uv);
+  } else if (uBoilFrame == 2) {
+    return texture2D(uTex2, uv);
+  }
+  return texture2D(uTex0, uv);
 }
 
-// Halftone dot pattern for manga mid-tones
-float computeHalftone(vec2 uv, float luma, float density) {
-  vec2 grid = fract(uv * density * 0.65) - 0.5;
-  float dist = length(grid);
-  float radius = clamp((0.72 - luma) * 0.65, 0.0, 0.45);
-  return 1.0 - step(radius, dist);
+// Gentle jittered shader hatch only for residual mid-tones (0.35 < luma < 0.72)
+float gentleMidtoneHatch(vec2 uv, float luma, float density) {
+  float c = 0.70710678;
+  float jitter = (valueNoise(uv * 35.0) - 0.5) * 0.25;
+  vec2 rot = vec2(c * uv.x - c * uv.y, c * uv.x + c * uv.y) * density + jitter;
+  float wave = abs(fract(rot.x) - 0.5) * 2.0;
+  float inMidtoneBand = smoothstep(0.32, 0.42, luma) * (1.0 - smoothstep(0.62, 0.74, luma));
+  float lineMask = 1.0 - step(0.28, wave);
+  return lineMask * inMidtoneBand * 0.45;
 }
 
 void main() {
-  // 1. Hand-drawn line-boil quantized at 10 fps (disabled under prefers-reduced-motion)
   float motionScale = 1.0 - uReducedMotion;
-  float boilTick = floor(uTime * 10.0);
-  vec2 boilOffset = vec2(
-    valueNoise(vUv * 22.0 + vec2(boilTick * 1.7, 0.0)) - 0.5,
-    valueNoise(vUv * 22.0 + vec2(0.0, boilTick * 2.3)) - 0.5
-  ) * uBoilAmount * motionScale;
 
-  // 2. Depth-map UV displacement ("pseudo-3D wiggle") from damped mouse
+  // Depth-map UV displacement ("pseudo-3D wiggle") from damped mouse
   float depthSample = texture2D(uDepthMap, vUv).r;
   vec2 depthOffset = uMouse * (depthSample - 0.5) * uDepthDisplace * motionScale;
 
-  // 3. Optional subtle ripple for the Red Orb focal point
+  // Subtle ripple on the Red Orb
   vec2 rippleOffset = vec2(0.0);
   if (uRippleAmount > 0.01 && uReducedMotion < 0.5) {
-    float rippleWave = sin(vUv.y * 28.0 + uTime * 2.2) * cos(vUv.x * 24.0 - uTime * 1.6);
-    rippleOffset = vec2(rippleWave * 0.0035 * uRippleAmount);
+    float rippleWave = sin(vUv.y * 26.0 + uTime * 2.0) * cos(vUv.x * 22.0 - uTime * 1.5);
+    rippleOffset = vec2(rippleWave * 0.0028 * uRippleAmount);
   }
 
-  vec2 sampleUv = clamp(vUv + boilOffset + depthOffset + rippleOffset, 0.002, 0.998);
-  vec4 tex = texture2D(uTexture, sampleUv);
+  vec2 baseUv = clamp(vUv + depthOffset + rippleOffset, 0.003, 0.997);
+  vec4 tex = sampleBoilVariant(baseUv);
 
-  // Transparent pixels discard cleanly so layered depth planes composite over paper
-  if (tex.a < 0.08) {
+  // Sample misregistered red plate at baseUv + uRedOffset (2–3px offset + scroll drift)
+  vec2 redUv = clamp(baseUv + uRedOffset, 0.003, 0.997);
+  vec4 redTex = sampleBoilVariant(redUv);
+  float redDominance = (redTex.r - max(redTex.g, redTex.b)) * step(0.15, redTex.a);
+  float isRedPlate = step(0.30, redDominance) * uAllowRed;
+
+  // Discard fully transparent pixels where neither ink nor misregistered red plate is present
+  if (tex.a < 0.08 && isRedPlate < 0.5) {
     discard;
   }
 
-  // 4. Sobel / Neighbor Edge Detection on alpha & luminance for crisp ink outlines
-  vec2 texel = vec2(1.0 / 1024.0);
-  float aN = texture2D(uTexture, clamp(sampleUv + vec2(0.0, texel.y), 0.0, 1.0)).a;
-  float aS = texture2D(uTexture, clamp(sampleUv - vec2(0.0, texel.y), 0.0, 1.0)).a;
-  float aE = texture2D(uTexture, clamp(sampleUv + vec2(texel.x, 0.0), 0.0, 1.0)).a;
-  float aW = texture2D(uTexture, clamp(sampleUv - vec2(texel.x, 0.0), 0.0, 1.0)).a;
-  float edgeAlpha = (abs(aN - aS) + abs(aE - aW)) * uEdgeStrength;
-
-  // Detect red signal pixels in source texture (high R, low G & B)
-  float redDominance = tex.r - max(tex.g, tex.b);
-  float isRedFeature = step(0.32, redDominance) * uAllowRed;
-
-  // Compute perceptual luminance for non-red ink/paper features
-  float luma = dot(tex.rgb, vec3(0.299, 0.587, 0.114));
-
-  // 5. Procedural hatching + halftone based on luminance
-  float hatchMask = computeHatching(sampleUv, luma, uHatchDensity);
-  float dotMask = computeHalftone(sampleUv, luma, uHatchDensity);
-  float midtoneInk = mix(hatchMask, max(hatchMask, dotMask), uHalftoneMix);
-
-  // Combine solid dark ink areas (luma < 0.22), mid-tone hatching (0.22..0.78), and edge outlines
-  float solidInk = 1.0 - step(0.24, luma);
-  float inkCoverage = clamp(max(solidInk, max(midtoneInk, step(0.35, edgeAlpha))), 0.0, 1.0);
-
-  // 6. Subtle animated paper grain (kept faint so white paper reads clean)
-  float grain = (hash21(vUv * 420.0 + vec2(boilTick * 0.13)) - 0.5) * 0.04;
-  float grainedPaperChoice = step(0.88, luma + grain);
-
-  // 7. STRICT THREE-COLOR PALETTE QUANTIZATION SAFEGUARD
-  // Every fragment is strictly quantized to Paper (#FAFAF8), Ink (#0A0A0A), or Red (#D4141C)
-  vec3 finalColor = mix(uColorPaper, uColorInk, inkCoverage * (1.0 - grainedPaperChoice * 0.15));
-
-  if (isRedFeature > 0.5) {
-    // Red orb / red pilot scarf with subtle ink-hatched shading on its lower rim
-    float orbShadeHatch = computeHatching(sampleUv, luma + 0.22, uHatchDensity * 0.85);
-    float rimInk = max(step(0.45, edgeAlpha), orbShadeHatch * 0.35);
-    finalColor = mix(uColorRed, uColorInk, step(0.55, rimInk));
+  // Compute perceptual luminance of the primary ink sample
+  // For pixels where only the offset red plate exists, treat base luminance as paper white (1.0)
+  float rawLuma = dot(tex.rgb, vec3(0.299, 0.587, 0.114));
+  float currentPixelIsRedOnly = step(0.30, tex.r - max(tex.g, tex.b));
+  float inkLuma = mix(rawLuma, 0.96, currentPixelIsRedOnly);
+  if (tex.a < 0.08) {
+    inkLuma = 1.0;
   }
 
-  // 8. Chapter transition ragged ink-bleed wipe (noise-threshold dissolve)
+  // 4-tap neighbor sampling for Ink Pooling (heavier darkening where lines meet)
+  vec2 texel = vec2(1.0 / 1400.0);
+  vec4 nN = sampleBoilVariant(clamp(baseUv + vec2(0.0, texel.y), 0.003, 0.997));
+  vec4 nS = sampleBoilVariant(clamp(baseUv - vec2(0.0, texel.y), 0.003, 0.997));
+  vec4 nE = sampleBoilVariant(clamp(baseUv + vec2(texel.x, 0.0), 0.003, 0.997));
+  vec4 nW = sampleBoilVariant(clamp(baseUv - vec2(texel.x, 0.0), 0.003, 0.997));
+
+  float lN = mix(1.0, dot(nN.rgb, vec3(0.299, 0.587, 0.114)), step(0.1, nN.a));
+  float lS = mix(1.0, dot(nS.rgb, vec3(0.299, 0.587, 0.114)), step(0.1, nS.a));
+  float lE = mix(1.0, dot(nE.rgb, vec3(0.299, 0.587, 0.114)), step(0.1, nE.a));
+  float lW = mix(1.0, dot(nW.rgb, vec3(0.299, 0.587, 0.114)), step(0.1, nW.a));
+
+  float darkNeighborCount =
+    step(lN, 0.45) + step(lS, 0.45) + step(lE, 0.45) + step(lW, 0.45);
+  float poolBias = step(2.5, darkNeighborCount) * 0.09 * uEdgeStrength;
+
+  // Irregular ink threshold per B6:
+  // ink = 1.0 - smoothstep(t - w, t + w, lum + (noise(uv * scale) - 0.5) * 0.08)
+  float t = 0.54;
+  float w = 0.08;
+  float edgeNoise = (valueNoise(baseUv * 95.0) - 0.5) * 0.08;
+  float whiteFactor = smoothstep(t - w, t + w, inkLuma - poolBias + edgeNoise);
+  float inkAmount = 1.0 - whiteFactor;
+
+  // Add gentle fallback shader hatching only in unauthored mid-tone transitions
+  float extraHatch = gentleMidtoneHatch(baseUv, inkLuma, uHatchDensity);
+  inkAmount = clamp(max(inkAmount, extraHatch), 0.0, 1.0);
+
+  // Fine paper fiber noise at <= 3% strength on the white paper only
+  float fiber = (hash21(vUv * 620.0) - 0.5) * 0.026;
+  vec3 paperWithFiber = clamp(uColorPaper + vec3(fiber), 0.94, 1.0);
+
+  // Strict 3-color palette composition:
+  // Start with bright white paper (or misregistered Red Orb plate), then composite black ink strokes on top
+  vec3 basePlate = mix(paperWithFiber, uColorRed, isRedPlate);
+  float quantizedInk = step(0.46, inkAmount);
+  vec3 finalColor = mix(basePlate, uColorInk, quantizedInk);
+
+  // Chapter transition ragged ink-bleed dissolve (strictly pure ink, never grey)
   if (uTransitionBleed > 0.01 && uReducedMotion < 0.5) {
-    float bleedNoise = valueNoise(vUv * 9.0 + vec2(0.0, uScrollProgress * 6.0));
-    float bleedEdge = step(1.0 - uTransitionBleed * 0.45, bleedNoise);
-    finalColor = mix(finalColor, uColorInk, bleedEdge * 0.65);
+    float bleedNoise = valueNoise(vUv * 18.0 + vec2(0.0, uScrollProgress * 6.0));
+    float bleedEdge = step(1.0 - uTransitionBleed * 0.28, bleedNoise);
+    finalColor = mix(finalColor, uColorInk, bleedEdge);
   }
 
-  gl_FragColor = vec4(finalColor, tex.a);
+  float outAlpha = step(0.45, max(tex.a, isRedPlate));
+  if (outAlpha < 0.5) {
+    discard;
+  }
+  gl_FragColor = vec4(finalColor, 1.0);
 }
+

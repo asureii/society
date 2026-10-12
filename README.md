@@ -21,11 +21,11 @@ All UI elements, procedural canvas illustrations, and WebGL fragment shaders adh
 | `--paper` | `#FAFAF8` | **~65–70%** (Warm white paper background with subtle grain) |
 | `--paper-pure` | `#FFFFFF` | Caption boxes, manga panels, navigation bar fills |
 | `--ink` | `#0A0A0A` | **~25–30%** (Line work, hatching, frames, typography, dramatic ink masses) |
-| `--red` | `#D4141C` | **≤ 8%** (Focal red orb, pilot scarf stripe, crop-marks, active states, warnings) |
+| `--red` | `#D4141C` | **≤ 8%** (Focal red orb, crop-marks, active states, warnings) |
 | `--red-deep` | `#A30F15` | Hover/pressed state of red only |
 
-- **No flat greys or stray hues**: Mid-tones are produced strictly via luminance-driven ink hatching, cross-hatching, or halftone dots on white paper.
-- **Shader Safeguard**: [`src/scene/shaders/layer.frag.glsl`](src/scene/shaders/layer.frag.glsl) quantizes all output pixels to `uColorPaper`, `uColorInk`, and `uColorRed` (gated per layer by `uAllowRed`).
+- **No flat greys or stray hues**: Mid-tones are produced strictly via luminance-driven ink hatching, cross-hatching, stippling, or halftone dots on white paper.
+- **Shader Safeguard**: [`src/scene/shaders/layer.frag.glsl`](src/scene/shaders/layer.frag.glsl) applies a noisy paper-edge ink threshold (`smoothstep` perturbed by procedural noise), 4-tap edge ink pooling, subtle paper fiber grain (`≤3%` on white only), print misregistration (`uRedOffset`), ~9fps 3-frame line-boil (`uMap0`/`uMap1`/`uMap2`), and final palette quantization.
 - **Automated Verification**: Run `npm run check:palette` at any time to verify no unauthorized hex codes exist in `src/`.
 
 ---
@@ -49,36 +49,52 @@ npm run build
 
 ---
 
-## Personalization & Live Integrations (`src/config/profile.ts`)
+## Tuning the Hand-Inked Procedural Art (`src/config/ink.ts`)
 
-All personal data, GitHub settings, Lanyard Discord presence, MAGI skills, and timeline entries live in [`src/config/profile.ts`](src/config/profile.ts). Search for `TODO` in that file to fill in your details:
+All procedural ink brush, hatching, line-boil, and shader parameters live in a single configuration file: [`src/config/ink.ts`](src/config/ink.ts). Every stroke in [`src/scene/art/inkBrush.ts`](src/scene/art/inkBrush.ts) is constructed as a filled variable-width polygon (never `ctx.lineWidth`), and [`src/scene/art/hatch.ts`](src/scene/art/hatch.ts) drives organic tone-graded hatching and stippling.
 
-1. **GitHub Live Integration (`githubUsername` & `featuredRepos`)**:
-   - Set `githubUsername` to your GitHub handle.
-   - Set `featuredRepos` to an array of repository names you want pinned first.
-   - The hook [`src/hooks/useGithubRepos.ts`](src/hooks/useGithubRepos.ts) queries `/users/{username}/repos?sort=pushed&per_page=30` and `/users/{username}/events/public?per_page=30`, caches results in `sessionStorage` for 10 minutes, and falls back to `PROFILE.fallbackRepos` if rate-limited or offline.
-
-2. **Discord Lanyard Live Presence (`discordUserId`)**:
-   - Join the [Lanyard Discord server](https://github.com/Phineas/lanyard) so Lanyard can observe your presence.
-   - Put your 18/19-digit Discord Snowflake ID in `discordUserId` inside [`src/config/profile.ts`](src/config/profile.ts).
-   - [`src/hooks/useDiscordPresence.ts`](src/hooks/useDiscordPresence.ts) connects to `wss://api.lanyard.rest/socket` (handling op 1 Hello, op 2 Initialize, op 3 Heartbeat, `INIT_STATE`, and `PRESENCE_UPDATE`) with exponential backoff and a 30-second REST polling fallback (`GET https://api.lanyard.rest/v1/users/{id}`).
+Key tunables in `INK_CONFIG`:
+- `globalSeed`: Master deterministic PRNG seed (`mulberry32`) for the entire scene.
+- `wobbleAmplitude` / `wobbleFrequency`: Perpendicular hand-tremor displacement (`px` at 1x scale) and noise frequency along each stroke.
+- `taperAttackRange` / `taperReleaseRange` / `minTipWidthRatio`: Nib pressure envelope proportions.
+- `startBlobProbability` / `endFlickProbability`: Likelihood of an ink pool at stroke start or a sharp flicked tail on release.
+- `overshootPxRange`: Corner overshoot and endpoint miss distance (`1–4px`) so intersections feel hand-drawn.
+- `doubledLineProbability`: Chance (`~0.25`) that an outline receives a second, thinner, slightly offset sketch pass.
+- `lineBreakProbability`: Chance (`~0.03`) per segment of a small pen lift/gap on long strokes.
+- `dryBrushMinWidth` / `dryBrushStreaks`: Threshold and sliver count for scratchy white paper streaks inside thick brush strokes.
+- `hatchSpacingJitter` / `hatchAngleJitterDeg` / `hatchAngleDriftDeg`: Spacing (`±35%`) and angle (`±4°` + slow drift) variance across hatched regions.
+- `boilFps` / `boilVariantCount`: Frame rate (`9 fps`) and texture variant count (`3`) for subtle hand-drawn line boil.
+- `misregistrationOffsetPx`: Print misregistration offset (`1.5–2px`) on the red channel of the orb (`uRedOffset`).
 
 ---
 
-## Supplying Custom Illustrated 2.5D Layers
+## Supplying Custom Scanned / Hand-Drawn 2.5D Layers
 
-Until external PNG files are placed in `public/layers/entry-plug/`, [`src/scene/proceduralArt.ts`](src/scene/proceduralArt.ts) synthesizes placeholder art and depth maps in-palette so the experience works out of the box.
+By default, [`src/scene/art/index.ts`](src/scene/art/index.ts) asynchronously generates high-resolution (2x display size, chunked across frames) hand-inked layers and depth maps.
 
-To drop in your own hand-drawn illustrations, place PNGs (2048×1152 or 1024×1024 recommended, transparent background, drawn in `#0A0A0A` ink on `#FFFFFF`/`#FAFAF8` paper with `#D4141C` only on the orb and pilot scarf) at these paths configured in [`src/config/layers.config.ts`](src/config/layers.config.ts):
+To override any procedural layer with your own scanned or digitally inked artwork, drop a PNG file into `public/layers/entry-plug/` matching the paths configured in [`src/config/layers.config.ts`](src/config/layers.config.ts):
 
-| Layer ID | Color Texture Path | Optional Grayscale Depth Map Path | Red Allowed? |
+| Layer ID (`generatorKey`) | Color Texture Override Path | Optional Depth Map Path | Red Allowed? |
 | :--- | :--- | :--- | :--- |
-| `far-sky` | `/public/layers/entry-plug/far-sky-monolith.png` | `/public/layers/entry-plug/far-sky-monolith.depth.png` | No |
-| `red-orb` | `/public/layers/entry-plug/red-orb.png` | `/public/layers/entry-plug/red-orb.depth.png` | **Yes** |
-| `mid-far-horizon` | `/public/layers/entry-plug/mid-far-horizon.png` | `/public/layers/entry-plug/mid-far-horizon.depth.png` | No |
-| `near-stepping-stones` | `/public/layers/entry-plug/near-stepping-stones.png` | `/public/layers/entry-plug/near-stepping-stones.depth.png` | No |
-| `mid-pilot` | `/public/layers/entry-plug/mid-pilot.png` | `/public/layers/entry-plug/mid-pilot.depth.png` | **Yes** (scarf only) |
-| `foreground-debris` | `/public/layers/entry-plug/foreground-debris.png` | `/public/layers/entry-plug/foreground-debris.depth.png` | No |
+| `sky` (`far-sky`) | `/public/layers/entry-plug/sky.png` | `/public/layers/entry-plug/sky.depth.png` | No |
+| `orb` (`red-orb`) | `/public/layers/entry-plug/orb.png` | `/public/layers/entry-plug/orb.depth.png` | **Yes** |
+| `monolith` (`twin-monolith`) | `/public/layers/entry-plug/monolith.png` | `/public/layers/entry-plug/monolith.depth.png` | No |
+| `horizon` (`mid-far-horizon`) | `/public/layers/entry-plug/horizon.png` | `/public/layers/entry-plug/horizon.depth.png` | No |
+| `path` (`near-stepping-stones`) | `/public/layers/entry-plug/path.png` | `/public/layers/entry-plug/path.depth.png` | No |
+| `foreground` (`foreground-frame`) | `/public/layers/entry-plug/foreground.png` | `/public/layers/entry-plug/foreground.depth.png` | No |
+
+### Palette Rules for Artists
+1. **Strict 3-color artwork**: Draw in pure black ink (`#0A0A0A`) on transparent or pure white (`#FFFFFF` / `#FAFAF8`) backgrounds.
+2. **No grey washes**: Achieve all mid-tones using line hatching, cross-hatching, or stipple dots. The fragment shader thresholds luminance with a subtle paper-edge perturbation and will quantize any stray hues.
+3. **Red channel isolation**: Only the `orb` layer has `allowRed: true` (`#D4141C`). All other layers are strictly black ink and white paper.
+
+---
+
+## Personalization & Live Integrations (`src/config/profile.ts`)
+
+All personal data, GitHub settings, Lanyard Discord presence, MAGI skills, and timeline entries live in [`src/config/profile.ts`](src/config/profile.ts):
+1. **GitHub Live Integration (`githubUsername` & `featuredRepos`)**: Queries `/users/{username}/repos` and `/users/{username}/events/public`, caches in `sessionStorage` for 10 minutes, and falls back to `PROFILE.fallbackRepos`.
+2. **Discord Lanyard Live Presence (`discordUserId`)**: Connects to `wss://api.lanyard.rest/socket` with REST polling fallback (`GET https://api.lanyard.rest/v1/users/{id}`) and surfaces live status directly in the top-left HUD wordmark plate and Chapter 04 side panel.
 
 ---
 
@@ -87,4 +103,4 @@ To drop in your own hand-drawn illustrations, place PNGs (2048×1152 or 1024×10
 - **Build command**: `npm run build`
 - **Output directory**: `dist`
 - **Node.js version**: 20+
-- Chunk splitting is pre-configured in [`vite.config.ts`](vite.config.ts) (`three` and `gsap` chunks separated from application code).
+

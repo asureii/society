@@ -19,6 +19,8 @@
   --red: #D4141C;
   --red-deep: #A30F15;
   --ink-hairline: rgba(10, 10, 10, 0.12);
+  --hud-top: 64px;
+  --hud-side: 44px;
 }
 
 * {
@@ -46,6 +48,38 @@ body {
 :focus-visible {
   outline: 2px solid var(--red) !important;
   outline-offset: 2px !important;
+}
+
+/* Paper-colored text halo for direct unboxed typography over ink linework (Part C2) */
+.paper-halo {
+  paint-order: stroke fill;
+  -webkit-text-stroke: 8px var(--paper);
+  text-shadow:
+    0 0 2px var(--paper),
+    2px 2px 0 var(--paper),
+    -2px -2px 0 var(--paper);
+}
+
+.paper-halo-sm {
+  paint-order: stroke fill;
+  -webkit-text-stroke: 5px var(--paper);
+}
+
+/* Safe area padding for full-bleed Page Beats (Part C5) */
+.page-beat-safe {
+  padding-top: calc(var(--hud-top, 64px) + 28px);
+  padding-left: calc(var(--hud-side, 24px) + 12px);
+  padding-right: calc(var(--hud-side, 24px) + 20px);
+}
+
+/* Ragged hand-inked top/bottom page wipe edges for Page Beats */
+.manga-page-wipe {
+  background-color: var(--paper);
+  border-top: 4px solid var(--ink);
+  border-bottom: 4px solid var(--ink);
+  box-shadow:
+    0 -10px 0 0 var(--ink),
+    0 10px 0 0 var(--ink);
 }
 
 /* Custom In-Palette Patterns (No flat greys allowed; only ink hatching, halftone, or <=12% hairline) */
