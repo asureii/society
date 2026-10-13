@@ -1,7 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { PROFILE } from '../config/profile';
+import { useAppStore } from '../store/useAppStore';
 import { STAGE_DASHBOARD_CONFIG } from './stage.config';
 import { DASHBOARD_LAYOUT_CONFIG, type DashboardWidgetSlotId } from './layout.config';
+import {
+  clearStagePointer,
+  nudgeStageOrbByKey,
+  stageInputState,
+  updateStagePointerFromClient,
+} from './stageInput';
 import { resolveWidgetForSlot, useWidgetRegistryVersion } from './widgets/registry';
 import { EmptySlotPlaceholder, WidgetFrame } from './widgets/WidgetFrame';
 
@@ -42,8 +49,21 @@ export const DashboardPage: React.FC = () => {
     return () => {
       mql.removeEventListener('change', onChange);
       window.removeEventListener('resize', onChange);
+      clearStagePointer();
     };
   }, []);
+
+  const handleStageKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (
+      e.key === 'ArrowUp' ||
+      e.key === 'ArrowDown' ||
+      e.key === 'ArrowLeft' ||
+      e.key === 'ArrowRight'
+    ) {
+      e.preventDefault();
+      nudgeStageOrbByKey(e.key, useAppStore.getState().dashboardOrbUv);
+    }
+  };
 
   return (
     <main
@@ -64,6 +84,19 @@ export const DashboardPage: React.FC = () => {
         role="region"
         aria-label="Eva-01 Berserk target stage. Move pointer or press arrow keys to steer the red target dot."
         style={{ touchAction: 'pan-y' }}
+        onPointerMove={(e) => {
+          updateStagePointerFromClient(e.clientX, e.clientY, e.buttons > 0);
+        }}
+        onPointerDown={(e) => {
+          updateStagePointerFromClient(e.clientX, e.clientY, true);
+        }}
+        onPointerUp={() => {
+          stageInputState.pointerDown = false;
+        }}
+        onPointerLeave={() => {
+          clearStagePointer();
+        }}
+        onKeyDown={handleStageKeyDown}
         className="relative w-full h-[58dvh] md:fixed md:inset-0 md:h-full z-10 cursor-crosshair focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-[var(--red)]"
       />
 

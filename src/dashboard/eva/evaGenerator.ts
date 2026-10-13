@@ -243,9 +243,20 @@ export function ensureEvaArtBitmaps(
   return inFlightPromise;
 }
 
-function makeThreeTexture(source: BitmapOrCanvas): THREE.Texture {
-  const tex = new THREE.Texture(source as TexImageSource);
-  tex.colorSpace = THREE.SRGBColorSpace;
+function makeThreeTexture(source: BitmapOrCanvas, isLinearOrder = false): THREE.CanvasTexture {
+  let canvas: HTMLCanvasElement;
+  if (typeof HTMLCanvasElement !== 'undefined' && source instanceof HTMLCanvasElement) {
+    canvas = source;
+  } else {
+    canvas = document.createElement('canvas');
+    canvas.width = source.width;
+    canvas.height = source.height;
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(source as CanvasImageSource, 0, 0);
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = isLinearOrder ? THREE.NoColorSpace : THREE.SRGBColorSpace;
+  tex.flipY = true;
   tex.minFilter = THREE.LinearFilter;
   tex.magFilter = THREE.LinearFilter;
   tex.generateMipmaps = false;
@@ -259,18 +270,18 @@ export function getOrUploadEvaGpuBundle(
   if (!cachedCpuBitmaps) return null;
   if (!activeGpuBundle) {
     activeGpuBundle = {
-      backgroundTex: makeThreeTexture(cachedCpuBitmaps.backgroundBitmap),
-      backgroundOrderTex: makeThreeTexture(cachedCpuBitmaps.backgroundOrderBitmap),
-      bodyTex: makeThreeTexture(cachedCpuBitmaps.bodyBitmap),
-      bodyOrderTex: makeThreeTexture(cachedCpuBitmaps.bodyOrderBitmap),
-      headTex: makeThreeTexture(cachedCpuBitmaps.headBitmap),
-      headOrderTex: makeThreeTexture(cachedCpuBitmaps.headOrderBitmap),
-      jawTex: makeThreeTexture(cachedCpuBitmaps.jawBitmap),
-      jawOrderTex: makeThreeTexture(cachedCpuBitmaps.jawOrderBitmap),
-      eyeTex: makeThreeTexture(cachedCpuBitmaps.eyeBitmap),
-      pupilTex: makeThreeTexture(cachedCpuBitmaps.pupilBitmap),
-      dripsTex: makeThreeTexture(cachedCpuBitmaps.dripsBitmap),
-      orbTex: makeThreeTexture(cachedCpuBitmaps.orbBitmap),
+      backgroundTex: makeThreeTexture(cachedCpuBitmaps.backgroundBitmap, false),
+      backgroundOrderTex: makeThreeTexture(cachedCpuBitmaps.backgroundOrderBitmap, true),
+      bodyTex: makeThreeTexture(cachedCpuBitmaps.bodyBitmap, false),
+      bodyOrderTex: makeThreeTexture(cachedCpuBitmaps.bodyOrderBitmap, true),
+      headTex: makeThreeTexture(cachedCpuBitmaps.headBitmap, false),
+      headOrderTex: makeThreeTexture(cachedCpuBitmaps.headOrderBitmap, true),
+      jawTex: makeThreeTexture(cachedCpuBitmaps.jawBitmap, false),
+      jawOrderTex: makeThreeTexture(cachedCpuBitmaps.jawOrderBitmap, true),
+      eyeTex: makeThreeTexture(cachedCpuBitmaps.eyeBitmap, false),
+      pupilTex: makeThreeTexture(cachedCpuBitmaps.pupilBitmap, false),
+      dripsTex: makeThreeTexture(cachedCpuBitmaps.dripsBitmap, false),
+      orbTex: makeThreeTexture(cachedCpuBitmaps.orbBitmap, false),
       memoryBytes: cachedCpuBitmaps.memoryBytes,
     };
   }
