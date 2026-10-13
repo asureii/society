@@ -9,8 +9,8 @@ import type { AnyCanvas } from './evaSurface';
 
 /**
  * Draws the Eva-01 `drips` layer (512x512 transparent canvas):
- * - Slow looping vertical ink drips & beads aligned beneath the horn tip, upper teeth,
- *   and lower jaw chin spur.
+ * - Slow looping vertical ink drips & beads aligned beneath the forward-swept horn (`x = 674`),
+ *   upper fangs (`x = 576`), and hyper-extended lower jaw (`x = 696, 608, 532, 444`).
  */
 export function drawEvaDripsLayer(
   ctx: Canvas2DContext,
@@ -26,17 +26,15 @@ export function drawEvaDripsLayer(
 
   // Drip columns in 1024-normalized coordinates: [x, startY, endY, width]
   const columns: Array<[number, number, number, number]> = [
-    // Horn tip drip
-    [276, 55, 220, 3.6],
-    // Upper teeth / snout drips
-    [612, 485, 620, 3.2],
-    [715, 470, 595, 3.0],
-    [775, 442, 585, 2.8],
-    // Lower jaw & chin spur drips
-    [682, 765, 965, 4.2],
-    [720, 738, 920, 3.4],
-    [595, 745, 910, 3.2],
-    [535, 758, 935, 3.5],
+    // Horn underside vertical drip
+    [674, 118, 254, 3.0],
+    // Upper fangs mouth-cavity vertical strand
+    [576, 358, 482, 3.2],
+    // Extended lower mandible & chin spike long vertical drips
+    [696, 624, 712, 3.0],
+    [608, 558, 812, 3.8],
+    [532, 526, 622, 2.8],
+    [444, 528, 654, 3.0],
   ];
 
   for (const [dx, y0, y1, w] of columns) {
@@ -49,21 +47,20 @@ export function drawEvaDripsLayer(
       ctx,
       [
         [x, sy0],
-        [x + rng.range(-2, 2) * s, midY],
-        [x + rng.range(-2, 2) * s, sy1],
+        [x + rng.range(-1, 1) * s, midY],
+        [x + rng.range(-1, 1) * s, sy1],
       ],
       rng,
       {
-        baseWidth: w * s * 1.4,
+        baseWidth: w * s * 1.25,
         color: THEME_COLORS.ink,
-        wobbleScale: 0.7,
-        taperScale: 1.25,
-        breakChance: 0.18,
+        wobbleScale: 0.45,
+        taperScale: 1.35,
+        breakChance: 0.14,
       }
     );
 
-    // Pooled terminal ink droplet bead
-    drawInkDot(ctx, x, sy1 + 10 * s, w * s * 1.25, rng, THEME_COLORS.ink);
-    drawInkDot(ctx, x + rng.range(-3, 3) * s, sy1 + 28 * s, w * s * 0.85, rng, THEME_COLORS.ink);
+    drawInkDot(ctx, x, sy1 + 9 * s, w * s * 0.95, rng, THEME_COLORS.ink);
+    drawInkDot(ctx, x, sy1 + 24 * s, w * s * 0.65, rng, THEME_COLORS.ink);
   }
 }

@@ -124,7 +124,7 @@ const EVA_REVEAL_FRAG = /* glsl */ `
     float alpha = tex.a * edgeMask;
     if (alpha < 0.05) discard;
     float luma = dot(tex.rgb, vec3(0.299, 0.587, 0.114));
-    vec3 col = luma > 0.5 ? uColorPaper : uColorInk;
+    vec3 col = luma > 0.22 ? uColorPaper : uColorInk;
     gl_FragColor = vec4(col, 1.0);
   }
 `;
@@ -153,11 +153,11 @@ const EVA_EYE_FRAG = /* glsl */ `
     if (alpha < 0.08) discard;
 
     float luma = dot(tex.rgb, vec3(0.299, 0.587, 0.114));
-    vec3 baseCol = luma > 0.5 ? uColorPaper : uColorInk;
-    if (uBlackout > 0.01 && luma > 0.5) {
+    vec3 baseCol = luma > 0.22 ? uColorPaper : uColorInk;
+    if (uBlackout > 0.01 && luma > 0.22) {
       baseCol = mix(baseCol, uColorInk, step(0.5, uBlackout));
     }
-    if (uFlash > 0.05 && luma > 0.5) {
+    if (uFlash > 0.05 && luma > 0.22) {
       baseCol = mix(baseCol, uColorRed, step(0.55, uFlash));
     }
     gl_FragColor = vec4(baseCol, 1.0);
@@ -184,12 +184,12 @@ const EVA_PUPIL_FRAG = /* glsl */ `
     float alpha = tex.a * revealGate;
     if (alpha < 0.08) discard;
 
-    bool isRedPixel = (tex.r - max(tex.g, tex.b)) > 0.25;
+    bool isRedPixel = (tex.r - max(tex.g, tex.b)) > 0.18;
     float luma = dot(tex.rgb, vec3(0.299, 0.587, 0.114));
     vec3 col = uColorInk;
     if (isRedPixel) {
       col = uShowGlint > 0.5 ? uColorRed : uColorInk;
-    } else if (luma > 0.65) {
+    } else if (luma > 0.35) {
       col = uColorPaper;
     }
     gl_FragColor = vec4(col, 1.0);
@@ -266,16 +266,16 @@ const ORB_STAGE_FRAG = /* glsl */ `
       return;
     }
 
-    float luma = dot(inkSample.rgb, vec3(0.299, 0.587, 0.114));
-    bool isInkHatch = inkSample.a > 0.25 && luma < 0.32;
-    bool isRedPlate = (redSample.r - max(redSample.g, redSample.b)) > 0.22 && redSample.a > 0.2;
+    // In linear RGB, #0A0A0A ink has r < 0.02 while #D4141C red has r > 0.55
+    bool isInkHatch = inkSample.a > 0.35 && inkSample.r < 0.18 && inkSample.g < 0.18;
+    bool isRedPlate = (redSample.r - max(redSample.g, redSample.b)) > 0.18 && redSample.a > 0.2;
 
     if (isInkHatch) {
       gl_FragColor = vec4(uColorInk, 1.0);
     } else if (isRedPlate) {
       gl_FragColor = vec4(uColorRed, 1.0);
     } else if (inkSample.a > 0.35) {
-      gl_FragColor = vec4(uColorInk, 1.0);
+      gl_FragColor = vec4(uColorRed, 1.0);
     } else {
       discard;
     }
@@ -701,7 +701,7 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
     }
 
     if (headGroupRef.current) {
-      headGroupRef.current.position.set(-0.84 + curHeadX, -0.43 + curHeadY, 0);
+      headGroupRef.current.position.set(-0.7666 + curHeadX, 0.6201 + curHeadY, 0);
       headGroupRef.current.rotation.z = THREE.MathUtils.degToRad(
         curHeadRotDeg + microTwitchDeg
       );
@@ -709,9 +709,9 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
     }
 
     if (jawGroupRef.current) {
-      jawGroupRef.current.position.set(0.47 + jawShakeX, 0.32 + jawShakeY, 0.02);
-      // Right-facing mandible opens downward with negative Z rotation
-      jawGroupRef.current.rotation.z = THREE.MathUtils.degToRad(-curJawDeg);
+      jawGroupRef.current.position.set(0.4053 + jawShakeX, -0.0635 + jawShakeY, 0.02);
+      // Jaw art is drawn at ~11.5 deg open base; rotate relative to 11.5 deg so it opens wider with proximity and closes when offline
+      jawGroupRef.current.rotation.z = THREE.MathUtils.degToRad(-(curJawDeg - 11.5));
     }
 
     if (pupilMeshRef.current) {
@@ -905,9 +905,9 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
           </mesh>
         </group>
 
-        {/* 3. Head Layer (pivoted at neck base `(-0.84, -0.43)`) */}
-        <group ref={headGroupRef} position={[-0.84, -0.43, 0]}>
-          <mesh position={[0.84, 0.43, 0]} renderOrder={3}>
+        {/* 3. Head Layer (pivoted at neck base `(355, 385)` -> `(-0.7666, +0.6201)`) */}
+        <group ref={headGroupRef} position={[-0.7666, 0.6201, 0]}>
+          <mesh position={[0.7666, -0.6201, 0]} renderOrder={3}>
             <planeGeometry args={[5.0, 5.0]} />
             <shaderMaterial
               ref={headMatRef}
@@ -920,9 +920,9 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
             />
           </mesh>
 
-          {/* 4. Hinged Lower Jaw Layer (pivoted at jaw hinge `(+0.47, +0.32)` relative to neck pivot) */}
-          <group ref={jawGroupRef} position={[0.47, 0.32, 0.02]}>
-            <mesh position={[0.37, 0.11, 0]} renderOrder={4}>
+          {/* 4. Hinged Lower Jaw Layer (pivoted at jaw hinge `(438, 398)` -> `(+0.4053, -0.0635)` relative to neck pivot) */}
+          <group ref={jawGroupRef} position={[0.4053, -0.0635, 0.02]}>
+            <mesh position={[0.3613, -0.5566, 0]} renderOrder={4}>
               <planeGeometry args={[5.0, 5.0]} />
               <shaderMaterial
                 ref={jawMatRef}
@@ -936,10 +936,10 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
             </mesh>
           </group>
 
-          {/* 5. Eye Sclera & Sliding Pupil on Brow Plate (`(+1.30, +1.15)` relative to neck pivot) */}
-          <group ref={eyeWorldGroupRef} position={[1.3, 1.15, 0.05]}>
+          {/* 5. Eye Sclera & Sliding Pupil on Brow Plate (`(486, 284)` -> `(+0.6396, +0.4932)` relative to neck pivot) */}
+          <group ref={eyeWorldGroupRef} position={[0.6396, 0.4932, 0.05]}>
             <mesh renderOrder={5}>
-              <planeGeometry args={[0.56, 0.56]} />
+              <planeGeometry args={[0.48, 0.48]} />
               <shaderMaterial
                 ref={eyeMatRef}
                 vertexShader={LAYER_VERT}
@@ -951,7 +951,7 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
               />
             </mesh>
             <mesh ref={pupilMeshRef} position={[0, 0, 0.01]} renderOrder={6}>
-              <planeGeometry args={[0.48, 0.48]} />
+              <planeGeometry args={[0.42, 0.42]} />
               <shaderMaterial
                 ref={pupilMatRef}
                 vertexShader={LAYER_VERT}
@@ -965,7 +965,7 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
           </group>
 
           {/* 6. Looping Ink Drips Layer */}
-          <mesh position={[0.84, 0.43, 0.04]} renderOrder={7}>
+          <mesh position={[0.7666, -0.6201, 0.04]} renderOrder={7}>
             <planeGeometry args={[5.0, 5.0]} />
             <shaderMaterial
               ref={dripsMatRef}

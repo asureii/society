@@ -360,133 +360,241 @@ function renderDashboardCompositedFrame(opts: RenderDashboardOptions): {
       ? [...STAGE_DASHBOARD_CONFIG.orb.mobileDefaultPos]
       : [...STAGE_DASHBOARD_CONFIG.orb.defaultPos]);
 
-  // 1. Faint radial speed lines & spatter behind head
-  const focusX = W * 0.28;
+  // 1. Faint radial speed lines around outer perimeter (keeping a clean paper halo around mouth & jaw drips)
+  const focusX = W * 0.25;
   const focusY = H * (isMob ? 0.26 : 0.44);
-  for (let i = 0; i < 36; i++) {
-    const a = (i / 36) * Math.PI * 2;
-    if (Math.cos(a) > 0.42 && !isMob) continue;
-    const r0 = W * 0.16;
+  for (let i = 0; i < 34; i++) {
+    const a = (i / 34) * Math.PI * 2;
+    const cosA = Math.cos(a);
+    const sinA = Math.sin(a);
+    if (cosA > 0.18 && sinA > -0.55 && sinA < 0.72 && !isMob) continue;
+    const r0 = W * 0.22;
     const r1 = W * 0.34;
     surface.drawLine(
-      focusX + Math.cos(a) * r0,
-      focusY + Math.sin(a) * r0,
-      focusX + Math.cos(a) * r1,
-      focusY + Math.sin(a) * r1,
+      focusX + cosA * r0,
+      focusY + sinA * r0,
+      focusX + cosA * r1,
+      focusY + sinA * r1,
       1.5,
       COL_INK
     );
   }
 
   // 2. Eva-01 Berserk Silhouette (left ~50% on desktop, top-left on mobile)
-  const sx = isMob ? (W * 0.56) / 840 : (W * 0.5) / 840;
-  const sy = isMob ? (H * 0.42) / 920 : (H * 0.88) / 920;
+  const sx = isMob ? (W * 0.56) / 800 : (W * 0.49) / 800;
+  const sy = isMob ? (H * 0.42) / 960 : (H * 0.88) / 960;
   const ox = W * 0.02;
-  const oy = H * (isMob ? 0.06 : 0.08);
+  const oy = H * (isMob ? 0.05 : 0.06);
   const pt = (x: number, y: number): [number, number] => [ox + x * sx, oy + y * sy];
 
-  // Left Shoulder Pylon + Right Shoulder Pylon + Neck/Chest V-seam
-  surface.fillPolygon(
-    [pt(0, 180), pt(90, 75), pt(195, 68), pt(265, 138), pt(305, 420), pt(290, 680), pt(0, 695)],
-    COL_INK
-  );
-  // Chevron grooves on left pylon
-  for (let c = 0; c < 3; c++) {
-    const cy = 240 + c * 65;
-    surface.drawLine(...pt(35, cy + 16), ...pt(130, cy - 12), 3, COL_PAPER);
-    surface.drawLine(...pt(130, cy - 12), ...pt(225, cy + 18), 3, COL_PAPER);
-  }
-  // Right Shoulder Pylon
-  surface.fillPolygon(
-    [pt(430, 440), pt(555, 295), pt(635, 312), pt(670, 445), pt(630, 750), pt(445, 740)],
-    COL_INK
-  );
-  // Chest & Neck
-  surface.fillPolygon(
-    [pt(0, 540), pt(210, 495), pt(360, 485), pt(485, 545), pt(620, 695), pt(720, 910), pt(0, 910)],
-    COL_INK
-  );
-  // V-shaped chest seam
-  surface.drawLine(...pt(90, 690), ...pt(360, 885), 4, COL_PAPER);
-  surface.drawLine(...pt(360, 885), ...pt(605, 715), 4, COL_PAPER);
-
-  // Single Blade Horn + Head Cranium & Splayed Cheek Armor
-  const droopY = -profile.headDroopDeg * 2.2;
-  const hPt = (x: number, y: number): [number, number] => pt(x, y + droopY);
-
-  surface.fillPolygon(
-    [hPt(355, 245), hPt(285, 108), hPt(268, 28), hPt(315, 52), hPt(420, 160), hPt(490, 255)],
-    COL_INK
-  );
-  surface.drawLine(...hPt(298, 76), ...hPt(380, 185), 2.5, COL_PAPER);
-
+  // A. Tall Swept-Back Shoulder Restraint Pylons + Rear Shadow Pylon Block
   surface.fillPolygon(
     [
-      hPt(175, 315),
-      hPt(225, 212),
-      hPt(360, 188),
-      hPt(520, 215),
-      hPt(675, 275),
-      hPt(805, 348),
-      hPt(830, 392),
-      hPt(790, 432),
-      hPt(645, 440),
-      hPt(520, 452),
-      hPt(575, 502),
-      hPt(485, 528),
-      hPt(325, 530),
-      hPt(220, 460),
+      pt(22, 538),
+      pt(72, 446),
+      pt(132, 468),
+      pt(168, 396),
+      pt(156, 340),
+      pt(252, 376),
+      pt(328, 438),
+      pt(298, 588),
+      pt(122, 688),
+      pt(62, 638),
     ],
     COL_INK
   );
-  // Brow & cheek negative-space armor seams
-  surface.drawLine(...hPt(245, 270), ...hPt(615, 298), 3, COL_PAPER);
-  surface.drawLine(...hPt(320, 375), ...hPt(755, 402), 3, COL_PAPER);
+  // B. Continuous Neck, Barrel Pectoral Chest Armor, Core & Wasp Waist
+  surface.fillPolygon(
+    [
+      pt(255, 355),
+      pt(445, 395),
+      pt(432, 516),
+      pt(428, 578),
+      pt(406, 636),
+      pt(368, 672),
+      pt(328, 728),
+      pt(316, 812),
+      pt(376, 935),
+      pt(412, 960),
+      pt(78, 960),
+      pt(68, 895),
+      pt(98, 755),
+      pt(132, 615),
+      pt(208, 455),
+    ],
+    COL_INK
+  );
+  // Iconic white triangular shoulder armor plate + circular black port dot (drawn over combined shoulder/torso)
+  surface.fillPolygon(
+    [pt(156, 424), pt(236, 406), pt(216, 514), pt(176, 536), pt(162, 488)],
+    COL_PAPER
+  );
+  surface.fillCircle(...pt(192, 488), Math.max(2, 6 * sx), COL_INK);
 
-  // Upper Jagged Teeth (white negative space)
-  for (let t = 0; t < 8; t++) {
-    const tx0 = 528 + t * 30;
-    const tx1 = tx0 + 24;
-    const tm = (tx0 + tx1) * 0.5;
-    surface.fillPolygon([hPt(tx0, 442), hPt(tx1, 440), hPt(tm, 488)], COL_PAPER);
+  // 3 White Dorsal Spine / Entry-Plug Vertebrae Fins down the arched back
+  for (const [fx, fy, fw, fh] of [
+    [146, 562, 26, 44],
+    [136, 624, 28, 46],
+    [120, 688, 30, 48],
+  ] as const) {
+    surface.fillPolygon(
+      [pt(fx, fy + fh * 0.25), pt(fx + fw, fy), pt(fx + fw + 4, fy + fh * 0.75), pt(fx + 4, fy + fh)],
+      COL_PAPER
+    );
   }
 
-  // Hinged Lower Jaw + Lower Jagged Teeth
-  const jawDrop = profile.jawBase * 45 + (status === 'offline' ? 0 : 18);
+  // Pectoral chest plate seams & pelvic chevron
+  surface.drawLine(...pt(268, 502), ...pt(412, 532), 2.5, COL_PAPER);
+  surface.drawLine(...pt(284, 606), ...pt(414, 594), 2.5, COL_PAPER);
+  surface.drawLine(...pt(132, 868), ...pt(212, 945), 3, COL_PAPER);
+  surface.drawLine(...pt(212, 945), ...pt(284, 892), 3, COL_PAPER);
+
+  // C. Slender Tapered Forearms, Forearm Blade Fin & Separated Hooked Berserk Claw Fingers
+  surface.fillPolygon(
+    [
+      pt(206, 520),
+      pt(264, 536),
+      pt(248, 682),
+      pt(368, 774),
+      pt(468, 832),
+      pt(504, 838),
+      pt(496, 872),
+      pt(452, 866),
+      pt(338, 808),
+      pt(208, 738),
+      pt(172, 722),
+      pt(186, 648),
+    ],
+    COL_INK
+  );
+  surface.fillPolygon(
+    [pt(318, 734), pt(442, 782), pt(518, 792), pt(512, 818), pt(428, 806), pt(306, 756)],
+    COL_INK
+  );
+  // White forearm armor blade fin stripe
+  surface.fillPolygon(
+    [pt(228, 704), pt(362, 782), pt(438, 828), pt(426, 842), pt(264, 748), pt(214, 718)],
+    COL_PAPER
+  );
+  // Separated hooked Berserk claw fingers
+  const clawStrokes: Array<Array<[number, number]>> = [
+    [[502, 794], [528, 768], [544, 752]],
+    [[514, 798], [554, 786], [576, 766], [566, 754]],
+    [[516, 808], [562, 802], [588, 782], [580, 768]],
+    [[512, 818], [556, 818], [582, 802]],
+    [[468, 838], [496, 816], [518, 804]],
+    [[496, 844], [542, 842], [568, 824], [558, 812]],
+    [[498, 854], [548, 858], [576, 844], [568, 832]],
+    [[494, 864], [542, 874], [568, 864]],
+    [[484, 870], [526, 888], [548, 882]],
+  ];
+  for (const segs of clawStrokes) {
+    for (let i = 0; i < segs.length - 1; i++) {
+      surface.drawLine(...pt(segs[i][0], segs[i][1]), ...pt(segs[i + 1][0], segs[i + 1][1]), Math.max(2, 4.2 * sx), COL_INK);
+    }
+  }
+
+  // D. Single Iconic Hyper-Elongated Forward-Swept Horn & Continuous Throat Cranium
+  const droopY = -profile.headDroopDeg * 2.0;
+  const hPt = (x: number, y: number): [number, number] => pt(x, y + droopY);
+
+  // Single forward-swept Berserk razor horn + vertical horn drip in front of snout
+  surface.fillPolygon(
+    [
+      hPt(504, 242),
+      hPt(538, 208),
+      hPt(526, 198),
+      hPt(626, 114),
+      hPt(714, 46),
+      hPt(754, 24),
+      hPt(732, 56),
+      hPt(666, 134),
+      hPt(592, 248),
+    ],
+    COL_INK
+  );
+  surface.drawLine(...hPt(514, 236), ...hPt(618, 136), 2, COL_PAPER);
+  surface.drawLine(...hPt(678, 108), ...hPt(677, 236), 2, COL_INK);
+
+  // Sleek low cranium, short brutal snout & continuous solid throat column
+  surface.fillPolygon(
+    [
+      hPt(252, 294),
+      hPt(282, 266),
+      hPt(348, 236),
+      hPt(436, 224),
+      hPt(522, 234),
+      hPt(592, 246),
+      hPt(622, 262),
+      hPt(642, 282),
+      hPt(636, 314),
+      hPt(626, 342),
+      hPt(578, 346),
+      hPt(526, 348),
+      hPt(506, 376),
+      hPt(508, 438),
+      hPt(486, 478),
+      hPt(332, 474),
+      hPt(314, 404),
+      hPt(214, 386),
+      hPt(258, 362),
+      hPt(308, 348),
+      hPt(264, 322),
+      hPt(286, 308),
+    ],
+    COL_INK
+  );
+  surface.drawLine(...hPt(226, 382), ...hPt(432, 362), 2.5, COL_PAPER);
+
+  // Gnarled upper fangs + flared viscous vertical saliva strand
+  surface.fillPolygon([hPt(528, 344), hPt(548, 344), hPt(538, 368)], COL_INK);
+  surface.fillPolygon([hPt(554, 342), hPt(584, 342), hPt(576, 382), hPt(564, 372)], COL_INK);
+  surface.fillPolygon([hPt(588, 340), hPt(612, 338), hPt(602, 376)], COL_INK);
+  surface.fillPolygon([hPt(612, 338), hPt(626, 336), hPt(622, 364)], COL_INK);
+  surface.drawLine(...hPt(576, 364), ...hPt(576, 488), 3, COL_INK);
+
+  // E. Continuous Throat Root + Gnarled Asymmetric Lower Jaw & Needle Chin Spear
+  const jawDrop = profile.jawBase * 24 + (status === 'offline' ? -18 : 6);
   const jPt = (x: number, y: number): [number, number] => pt(x, y + droopY + jawDrop);
 
   surface.fillPolygon(
     [
+      jPt(336, 405),
+      jPt(498, 402),
+      jPt(506, 438),
+      jPt(526, 478),
+      jPt(548, 488),
+      jPt(568, 470),
+      jPt(584, 498),
+      jPt(608, 488),
+      jPt(624, 518),
+      jPt(658, 542),
+      jPt(688, 532),
+      jPt(706, 566),
+      jPt(758, 622),
+      jPt(710, 608),
+      jPt(696, 636),
+      jPt(674, 594),
+      jPt(608, 562),
+      jPt(532, 528),
+      jPt(484, 518),
+      jPt(444, 534),
       jPt(412, 512),
-      jPt(498, 542),
-      jPt(650, 582),
-      jPt(795, 610),
-      jPt(818, 646),
-      jPt(745, 722),
-      jPt(682, 772),
-      jPt(595, 738),
-      jPt(532, 756),
-      jPt(442, 675),
-      jPt(390, 592),
+      jPt(342, 516),
     ],
     COL_INK
   );
-  surface.drawLine(...jPt(440, 602), ...jPt(775, 640), 3, COL_PAPER);
-  if (status !== 'offline') {
-    for (let t = 0; t < 8; t++) {
-      const tx0 = 524 + t * 30;
-      const tx1 = tx0 + 24;
-      const tm = (tx0 + tx1) * 0.5;
-      const gy = 555 + t * 7;
-      surface.fillPolygon([jPt(tx0, gy), jPt(tm, gy - 42), jPt(tx1, gy + 2)], COL_PAPER);
-    }
-  }
+  surface.drawLine(...jPt(488, 492), ...jPt(736, 608), 2, COL_PAPER);
+  // 4 signature vertical ink drips off the lower jaw into open white paper
+  surface.drawLine(...jPt(696, 624), ...jPt(695, 688), 2, COL_INK);
+  surface.drawLine(...jPt(608, 554), ...jPt(607, 784), 2.5, COL_INK);
+  surface.drawLine(...jPt(532, 522), ...jPt(531, 596), 2, COL_INK);
+  surface.drawLine(...jPt(444, 526), ...jPt(443, 632), 2, COL_INK);
 
-  // Eye & Pupil on Brow Plate
-  const eyeX = eyeUv[0] * W;
-  const eyeY = eyeUv[1] * H;
-  const eyeRx = Math.max(12, W * 0.018);
-  const eyeRy = Math.max(5, H * 0.01 * profile.eyeOpenness);
+  // F. Glowing White Berserk Eye & Pupil on Brow Plate
+  const [eyeX, eyeY] = hPt(486, 284);
+  const eyeRx = Math.max(9, W * 0.012);
+  const eyeRy = Math.max(5, H * 0.011 * profile.eyeOpenness);
   if (profile.eyeBlackout < 0.5) {
     const eyePts: Array<[number, number]> = [];
     for (let i = 0; i < 20; i++) {

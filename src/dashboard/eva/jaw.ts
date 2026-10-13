@@ -1,5 +1,6 @@
 import { THEME_COLORS } from '../../config/theme';
 import {
+  drawInkDot,
   drawInkStroke,
   fillRoughenedPolygon,
   type Canvas2DContext,
@@ -9,18 +10,21 @@ import { createRng } from '../../scene/art/rng';
 import {
   carveCrossContourEdgeHatch,
   carveNegativeSeam,
-  drawInkSpatterCluster,
   fillInkSilhouetteWithFringe,
   type AnyCanvas,
   type EvaDrawOrderRecorder,
 } from './evaSurface';
 
 /**
- * Draws the Eva-01 `jaw` layer (1024x1024 transparent canvas, pivoted at jaw hinge `(435, 535)`):
- * - Ripped-open lower mandible and splayed chin armor plates
- * - Stretched mouth cavity edge striations at the jaw hinge
- * - Lower row of 8 large jagged white negative-space teeth attached to the mandible
- * - Ink drips hanging off the lower chin spur
+ * Draws the Eva-01 `jaw` layer (1024x1024 transparent canvas, pivoted at jaw hinge `(438, 398)`):
+ * Faithfully reproduces the gnarled, asymmetric, hyper-extended Berserk lower mandible from the reference artwork:
+ * - Solid black throat-hinge root (`x = 335..510, y = 395..530`) so there is never a detached white gap
+ *   between the neck/throat and the lower jaw at any jaw angle.
+ * - Concave inner mouth curve (`(506, 426) -> (546, 482)`) leading into irregular jagged projections
+ *   (`(568, 472)`, `(614, 494)`), the prominent forward chin-guard fang (`(688, 534)`), and the
+ *   hyper-extended needle-sharp chin spear (`(758, 622)`).
+ * - Sharp downward sub-chin barb (`(696, 636)`) and 4 long, needle-thin vertical ink drips hanging
+ *   straight down into the open white paper negative space below (`x = 696, 608, 532, 444`).
  * Draw-order range: `0.72 .. 0.96` (appears last before the eye flash)
  */
 export function drawEvaJawLayer(
@@ -36,151 +40,96 @@ export function drawEvaJawLayer(
 
   ctx.clearRect(0, 0, W, H);
 
-  // 1. Main Lower Jaw & Ripped Chin Armor Silhouette (hinge at (435, 535))
+  // 1. Continuous Throat Root + Hyper-Extended Gnarled Berserk Mandible & Needle Chin Spear
   const jawPoly: Point2D[] = [
-    [412 * s, 518 * s],
-    [495 * s, 548 * s],
-    [645 * s, 588 * s],
-    [792 * s, 616 * s],
-    [814 * s, 652 * s],
-    [742 * s, 728 * s],
-    // Heavy angular chin spur
-    [682 * s, 778 * s],
-    [598 * s, 742 * s],
-    // Splayed lower jaw armor flange ripped downward
-    [535 * s, 762 * s],
-    [445 * s, 682 * s],
-    [392 * s, 598 * s],
+    // Deep throat root overlapping head/neck column (zero gap!)
+    [336 * s, 405 * s],
+    [498 * s, 402 * s],
+    // Concave inner mouth corner curving down into the lower jaw
+    [506 * s, 438 * s],
+    [526 * s, 478 * s],
+    [548 * s, 488 * s],
+    // First irregular jagged tooth/crag on mandible
+    [568 * s, 470 * s],
+    [584 * s, 498 * s],
+    // Second irregular jagged tooth/crag (where vertical saliva strand lands)
+    [608 * s, 488 * s],
+    [624 * s, 518 * s],
+    // Deep concave dip before the large chin-guard fang
+    [658 * s, 542 * s],
+    // Prominent upward/forward chin-guard fang projection
+    [688 * s, 532 * s],
+    [706 * s, 566 * s],
+    // Hyper-extended needle-sharp chin spear tip
+    [758 * s, 622 * s],
+    // Underside of chin spear with sharp downward sub-chin barb at (696, 636)
+    [710 * s, 608 * s],
+    [696 * s, 636 * s],
+    [674 * s, 594 * s],
+    // Slender, dripping underside of the mandible sweeping back to the throat overhang
+    [608 * s, 562 * s],
+    [532 * s, 528 * s],
+    [484 * s, 518 * s],
+    [444 * s, 534 * s],
+    [412 * s, 512 * s],
+    [342 * s, 516 * s],
   ];
-  fillInkSilhouetteWithFringe(ctx, jawPoly, rng, 4.2 * s, 6.4 * s);
+  fillInkSilhouetteWithFringe(ctx, jawPoly, rng, 3.0 * s, 4.8 * s);
 
-  // Mouth cavity edge & stretched hinge striations (white negative space)
-  for (let m = 0; m < 4; m++) {
-    const off = m * 11 * s;
-    carveNegativeSeam(
-      ctx,
-      [
-        [442 * s + off, 492 * s + off * 0.4],
-        [462 * s + off, 532 * s + off * 0.5],
-        [492 * s + off, 568 * s + off * 0.4],
-      ],
-      rng,
-      { baseWidth: 2.6 * s }
-    );
-  }
-
-  // Ripped lower jaw armor plate seams (white negative space)
+  // Crisp foreground biomechanical chin-guard seam (white negative space)
   carveNegativeSeam(
     ctx,
     [
-      [438 * s, 608 * s],
-      [585 * s, 648 * s],
-      [778 * s, 646 * s],
+      [488 * s, 492 * s],
+      [584 * s, 532 * s],
+      [678 * s, 574 * s],
+      [736 * s, 608 * s],
     ],
     rng,
-    { baseWidth: 3.6 * s }
-  );
-  carveNegativeSeam(
-    ctx,
-    [
-      [468 * s, 665 * s],
-      [565 * s, 725 * s],
-      [675 * s, 746 * s],
-    ],
-    rng,
-    { baseWidth: 3.4 * s }
+    { baseWidth: 2.4 * s, wobbleScale: 0.55 }
   );
 
-  // Cross-contour hatching along the underside of the jaw & chin spur
+  // Cross-contour hatching along the underside of the extended mandible
   carveCrossContourEdgeHatch(
     ctx,
-    [455 * s, 682 * s],
-    [682 * s, 772 * s],
-    [0.35, -0.92],
-    14,
-    18 * s,
+    [485 * s, 518 * s],
+    [675 * s, 592 * s],
+    [0.36, -0.93],
+    9,
+    11 * s,
     rng
   );
 
-  // Ink drips hanging off the chin spur
-  const dripAnchors: Array<[number, number, number]> = [
-    [682, 772, 68],
-    [718, 744, 46],
-    [635, 756, 38],
+  // 2. Iconic 4 Long, Needle-Thin Vertical Ink Drips off the Lower Jaw (into open white space!)
+  const verticalDrips: Array<[number, number, number, number]> = [
+    // [x, startY, endY, baseWidth]
+    [696, 624, 688, 3.0], // Drip off the sub-chin barb
+    [608, 554, 784, 3.6], // The signature ultra-long vertical drip from mid-mandible!
+    [532, 522, 596, 2.6], // Mid-rear jaw drip
+    [444, 526, 632, 2.8], // Rear throat-jaw corner drip
   ];
-  for (const [dx, dy, dLen] of dripAnchors) {
+  for (const [dx, y0, y1, bw] of verticalDrips) {
+    // Small triangular liquid web at the root of the main drip
+    if (dx === 608 || dx === 444) {
+      const web: Point2D[] = [
+        [(dx - 9) * s, (y0 - 2) * s],
+        [(dx + 9) * s, (y0 + 2) * s],
+        [dx * s, (y0 + 28) * s],
+      ];
+      fillRoughenedPolygon(ctx, web, rng, THEME_COLORS.ink, 1.0 * s);
+    }
     drawInkStroke(
       ctx,
       [
-        [dx * s, dy * s],
-        [(dx - 2) * s, (dy + dLen * 0.55) * s],
-        [(dx - 3) * s, (dy + dLen) * s],
+        [dx * s, y0 * s],
+        [(dx - 0.5) * s, ((y0 + y1) * 0.55) * s],
+        [(dx - 0.5) * s, y1 * s],
       ],
       rng,
-      { baseWidth: 3.5 * s, color: THEME_COLORS.ink, taperScale: 1.3 }
+      { baseWidth: bw * s, color: THEME_COLORS.ink, taperScale: 1.4, wobbleScale: 0.35 }
     );
+    drawInkDot(ctx, (dx - 0.5) * s, (y1 + 7) * s, bw * 0.6 * s, rng, THEME_COLORS.ink);
   }
 
-  drawInkSpatterCluster(ctx, 735 * s, 695 * s, 45 * s, 12, rng);
-
-  recorder.captureStage(canvas, 0.72, 0.85, 'left-right');
-
-  // 2. Lower Row of 8 Large Jagged White Negative-Space Teeth pointing upward
-  const toothCount = 8;
-  const startX = 522 * s;
-  const endX = 772 * s;
-  const stepX = (endX - startX) / toothCount;
-
-  // Lower gumline negative-space ridge
-  carveNegativeSeam(
-    ctx,
-    [
-      [505 * s, 562 * s],
-      [648 * s, 596 * s],
-      [782 * s, 622 * s],
-    ],
-    rng,
-    { baseWidth: 3.2 * s }
-  );
-
-  for (let i = 0; i < toothCount; i++) {
-    const tx0 = startX + i * stepX + 2 * s;
-    const tx1 = startX + (i + 1) * stepX - 2 * s;
-    const tMid = (tx0 + tx1) * 0.5;
-    const tFrac = (i + 0.5) / toothCount;
-    const gumY = (560 + tFrac * 58) * s;
-    const lenBoost = i === 0 || i === 4 || i === 6 ? 1.25 : 1.0;
-    const toothLen = rng.range(36, 50) * lenBoost * s;
-
-    const toothPoly: Point2D[] = [
-      [tx0, gumY],
-      [tx0 + 3 * s, gumY - toothLen * 0.68],
-      [tMid + rng.range(-3, 4) * s, gumY - toothLen],
-      [tx1 - 3 * s, gumY - toothLen * 0.65],
-      [tx1, gumY + 2 * s],
-    ];
-
-    fillRoughenedPolygon(ctx, toothPoly, rng, THEME_COLORS.paper, 1.8 * s);
-    drawInkStroke(
-      ctx,
-      [
-        [tx0, gumY],
-        [tMid, gumY - toothLen],
-        [tx1, gumY + 2 * s],
-      ],
-      rng,
-      { baseWidth: 2.5 * s, color: THEME_COLORS.ink, wobbleScale: 0.85 }
-    );
-    drawInkStroke(
-      ctx,
-      [
-        [tMid, gumY - 2 * s],
-        [tMid + 1 * s, gumY - toothLen * 0.52],
-      ],
-      rng,
-      { baseWidth: 1.5 * s, color: THEME_COLORS.ink, wobbleScale: 0.6 }
-    );
-  }
-
-  recorder.captureStage(canvas, 0.85, 0.96, 'left-right');
+  recorder.captureStage(canvas, 0.72, 0.96, 'left-right');
 }

@@ -11,8 +11,8 @@ import type { AnyCanvas } from './evaSurface';
 
 /**
  * Draws the Eva-01 `eye` sclera plate (256x256 transparent canvas):
- * - Large, angled oval white negative-space eye (`THEME_COLORS.paperPure`) with
- *   hand-inked ragged orbital socket outline and berserk iris striations.
+ * -Stark, luminous white Berserk eye (`THEME_COLORS.paperPure`) matching the reference shadow
+ *  silhouette's iconic glowing circular-almond eye, with a hand-inked ragged socket rim.
  */
 export function drawEvaEyeLayer(
   ctx: Canvas2DContext,
@@ -24,9 +24,9 @@ export function drawEvaEyeLayer(
   const rng = createRng(seed);
   const cx = W * 0.5;
   const cy = H * 0.5;
-  const rx = W * 0.36;
-  const ry = H * 0.21;
-  const tilt = -0.22; // ~ -12.6 deg forward slant
+  const rx = W * 0.31;
+  const ry = H * 0.26;
+  const tilt = -0.14;
 
   ctx.clearRect(0, 0, W, H);
 
@@ -34,8 +34,7 @@ export function drawEvaEyeLayer(
   const steps = 28;
   for (let i = 0; i < steps; i++) {
     const a = (i / steps) * Math.PI * 2;
-    // Slight sharp tear-duct & outer corner pinch
-    const cornerBoost = Math.pow(Math.abs(Math.cos(a)), 0.78) * Math.sign(Math.cos(a));
+    const cornerBoost = Math.pow(Math.abs(Math.cos(a)), 0.88) * Math.sign(Math.cos(a));
     const lx = cornerBoost * rx;
     const ly = Math.sin(a) * ry;
     const wx = cx + lx * Math.cos(tilt) - ly * Math.sin(tilt);
@@ -43,16 +42,15 @@ export function drawEvaEyeLayer(
     poly.push([wx, wy]);
   }
 
-  // Outer black socket rim
-  fillRoughenedPolygon(ctx, poly, rng, THEME_COLORS.paperPure, 2.2);
+  fillRoughenedPolygon(ctx, poly, rng, THEME_COLORS.paperPure, 1.8);
   for (let i = 0; i < poly.length; i++) {
     const p0 = poly[i];
     const p1 = poly[(i + 1) % poly.length];
     drawInkStroke(ctx, [p0, p1], rng, {
-      baseWidth: 3.4,
+      baseWidth: 3.2,
       color: THEME_COLORS.ink,
-      wobbleScale: 0.9,
-      doubleChance: 0.25,
+      wobbleScale: 0.75,
+      doubleChance: 0.2,
     });
   }
 }
@@ -76,15 +74,10 @@ export function drawEvaPupilLayer(
 
   ctx.clearRect(0, 0, W, H);
 
-  // Outer iris ring + solid black predatory pupil disc
-  const pupilRadius = W * 0.13;
+  const pupilRadius = W * 0.115;
   drawInkDot(ctx, cx, cy, pupilRadius, rng, THEME_COLORS.ink);
 
-  // Subtle white inner ring cleft so the pupil reads sharply
-  drawInkDot(ctx, cx - 2, cy - 1, 2.2, rng, THEME_COLORS.paperPure);
-
-  // Optional tiny red glint (<= 6px on screen) reflecting the target orb
   if (enableRedGlint) {
-    drawInkDot(ctx, cx + pupilRadius * 0.42, cy - pupilRadius * 0.32, 4.2, rng, THEME_COLORS.red);
+    drawInkDot(ctx, cx + pupilRadius * 0.38, cy - pupilRadius * 0.28, 4.4, rng, THEME_COLORS.red);
   }
 }
