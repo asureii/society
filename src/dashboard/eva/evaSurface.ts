@@ -1,4 +1,4 @@
-import { THEME_COLORS } from '../../config/theme';
+import { THEME_COLORS } from '../../config/theme.ts';
 import {
   drawInkDot,
   drawInkStroke,
@@ -6,8 +6,8 @@ import {
   type Canvas2DContext,
   type InkStrokeOptions,
   type Point2D,
-} from '../../scene/art/inkBrush';
-import type { PRNG } from '../../scene/art/rng';
+} from '../../scene/art/inkBrush.ts';
+import type { PRNG } from '../../scene/art/rng.ts';
 
 export type AnyCanvas = HTMLCanvasElement | OffscreenCanvas;
 

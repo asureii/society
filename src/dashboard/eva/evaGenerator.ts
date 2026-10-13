@@ -1,25 +1,64 @@
 import * as THREE from 'three';
-import { drawHandInkedOrb } from '../../scene/art/orb';
-import { createRng } from '../../scene/art/rng';
-import { useAppStore } from '../../store/useAppStore';
-import { drawEvaStageBackground } from './background';
-import { drawEvaBodyLayer } from './body';
-import { drawEvaDripsLayer } from './drips';
-import { drawEvaEyeLayer, drawEvaPupilLayer } from './eye';
-import { createEvaDrawOrderRecorder, createSurface, type AnyCanvas } from './evaSurface';
-import type { EvaWorkerRequest, EvaWorkerResponse } from './evaWorker';
+import { drawHandInkedOrb } from '../../scene/art/orb.ts';
+import { createRng } from '../../scene/art/rng.ts';
+import { useAppStore } from '../../store/useAppStore.ts';
+import { drawEvaStageBackground } from './background.ts';
+import { drawEvaNeckLayer, drawEvaTorsoLayer } from './body.ts';
+import { drawEvaDripsLayer } from './drips.ts';
+import { drawEvaEyeLayer, drawEvaPupilLayer } from './eye.ts';
+import { createEvaDrawOrderRecorder, createSurface, type AnyCanvas } from './evaSurface.ts';
+import type { EvaWorkerRequest, EvaWorkerResponse } from './evaWorker.ts';
 import EvaWorkerConstructor from './evaWorker?worker';
-import { drawEvaHeadLayer } from './head';
-import { drawEvaJawLayer } from './jaw';
+import { drawEvaHeadLayer } from './head.ts';
+import { drawEvaJawLayer } from './jaw.ts';
+import { EVA_PROPORTIONS } from './proportions.ts';
+import { EVA_SKELETON } from './skeleton.ts';
 
 export type BitmapOrCanvas = ImageBitmap | HTMLCanvasElement | OffscreenCanvas;
+
+export interface EvaPartAlphaBounds {
+  part: string;
+  px: {
+    xMin: number;
+    yMin: number;
+    xMax: number;
+    yMax: number;
+    width: number;
+    height: number;
+  };
+  hUnits: {
+    xMinH: number;
+    yMinH: number;
+    xMaxH: number;
+    yMaxH: number;
+    widthH: number;
+    heightH: number;
+  };
+}
+
+export interface EvaMetaJson {
+  canvasSizePx: number;
+  headUnitPx: number;
+  visibleHeads: number;
+  parts: Record<string, EvaPartAlphaBounds>;
+  measuredRatios: {
+    headToVisibleHeightRatio: number;
+    hornLengthH: number;
+    hornAngleAboveHorizontalDeg: number;
+    neckLeanDeg: number;
+    neckWidthH: number;
+    collarWidthH: number;
+  };
+}
 
 export interface EvaCpuBitmapCache {
   mainSize: number;
   backgroundBitmap: BitmapOrCanvas;
   backgroundOrderBitmap: BitmapOrCanvas;
-  bodyBitmap: BitmapOrCanvas;
-  bodyOrderBitmap: BitmapOrCanvas;
+  torsoBitmap: BitmapOrCanvas;
+  torsoOrderBitmap: BitmapOrCanvas;
+  neckBitmap: BitmapOrCanvas;
+  neckOrderBitmap: BitmapOrCanvas;
   headBitmap: BitmapOrCanvas;
   headOrderBitmap: BitmapOrCanvas;
   jawBitmap: BitmapOrCanvas;
@@ -34,8 +73,10 @@ export interface EvaCpuBitmapCache {
 export interface EvaGpuTextureBundle {
   backgroundTex: THREE.Texture;
   backgroundOrderTex: THREE.Texture;
-  bodyTex: THREE.Texture;
-  bodyOrderTex: THREE.Texture;
+  torsoTex: THREE.Texture;
+  torsoOrderTex: THREE.Texture;
+  neckTex: THREE.Texture;
+  neckOrderTex: THREE.Texture;
   headTex: THREE.Texture;
   headOrderTex: THREE.Texture;
   jawTex: THREE.Texture;
@@ -76,21 +117,37 @@ function generateOrbCanvas(size = 256): AnyCanvas {
   return canvas;
 }
 
+function computeTotalMemoryBytes(isMobile: boolean): number {
+  const bgSize = isMobile ? 768 : 1024;
+  const primarySize = isMobile ? 512 : 768;
+  const dripsSize = 512;
+  const eyeSize = 256;
+
+  const withOrder = (sz: number) => sz * sz * 4 + (sz / 2) * (sz / 2) * 4;
+  return (
+    withOrder(bgSize) +
+    4 * withOrder(primarySize) +
+    dripsSize * dripsSize * 4 +
+    3 * (eyeSize * eyeSize * 4)
+  );
+}
+
 function generateEvaOnMainThread(isMobile: boolean, eyeGlint: boolean): EvaCpuBitmapCache {
-  const mainSize = isMobile ? 768 : 1024;
-  const orderSize = Math.floor(mainSize / 2);
+  const bgSize = isMobile ? 768 : 1024;
+  const primarySize = isMobile ? 512 : 768;
   const dripsSize = 512;
   const eyeSize = 256;
 
   const makeWithOrder = (
+    size: number,
     drawFn: (
       ctx: ReturnType<typeof createSurface>['ctx'],
       c: AnyCanvas,
       rec: ReturnType<typeof createEvaDrawOrderRecorder>
     ) => void
   ) => {
-    const { canvas, ctx } = createSurface(mainSize, mainSize, false);
-    const rec = createEvaDrawOrderRecorder(mainSize, mainSize, false);
+    const { canvas, ctx } = createSurface(size, size, false);
+    const rec = createEvaDrawOrderRecorder(size, size, false);
     drawFn(ctx, canvas, rec);
     return {
       bitmap: canvas,
@@ -107,10 +164,11 @@ function generateEvaOnMainThread(isMobile: boolean, eyeGlint: boolean): EvaCpuBi
     return canvas;
   };
 
-  const bg = makeWithOrder((ctx, c, rec) => drawEvaStageBackground(ctx, c, rec, 701));
-  const body = makeWithOrder((ctx, c, rec) => drawEvaBodyLayer(ctx, c, rec, 709));
-  const head = makeWithOrder((ctx, c, rec) => drawEvaHeadLayer(ctx, c, rec, 719));
-  const jaw = makeWithOrder((ctx, c, rec) => drawEvaJawLayer(ctx, c, rec, 727));
+  const bg = makeWithOrder(bgSize, (ctx, c, rec) => drawEvaStageBackground(ctx, c, rec, 701));
+  const torso = makeWithOrder(primarySize, (ctx, c, rec) => drawEvaTorsoLayer(ctx, c, rec, 709));
+  const neck = makeWithOrder(primarySize, (ctx, c, rec) => drawEvaNeckLayer(ctx, c, rec, 707));
+  const head = makeWithOrder(primarySize, (ctx, c, rec) => drawEvaHeadLayer(ctx, c, rec, 719));
+  const jaw = makeWithOrder(primarySize, (ctx, c, rec) => drawEvaJawLayer(ctx, c, rec, 727));
   const eyeBitmap = makeSimple(eyeSize, (ctx, c) => drawEvaEyeLayer(ctx, c, 733));
   const pupilBitmap = makeSimple(eyeSize, (ctx, c) =>
     drawEvaPupilLayer(ctx, c, eyeGlint, 739)
@@ -118,17 +176,14 @@ function generateEvaOnMainThread(isMobile: boolean, eyeGlint: boolean): EvaCpuBi
   const dripsBitmap = makeSimple(dripsSize, (ctx, c) => drawEvaDripsLayer(ctx, c, 743));
   const orbBitmap = generateOrbCanvas(256);
 
-  const memoryBytes =
-    4 * (mainSize * mainSize * 4 + orderSize * orderSize * 4) +
-    dripsSize * dripsSize * 4 +
-    3 * (eyeSize * eyeSize * 4);
-
   return {
-    mainSize,
+    mainSize: bgSize,
     backgroundBitmap: bg.bitmap,
     backgroundOrderBitmap: bg.orderBitmap,
-    bodyBitmap: body.bitmap,
-    bodyOrderBitmap: body.orderBitmap,
+    torsoBitmap: torso.bitmap,
+    torsoOrderBitmap: torso.orderBitmap,
+    neckBitmap: neck.bitmap,
+    neckOrderBitmap: neck.orderBitmap,
     headBitmap: head.bitmap,
     headOrderBitmap: head.orderBitmap,
     jawBitmap: jaw.bitmap,
@@ -137,15 +192,10 @@ function generateEvaOnMainThread(isMobile: boolean, eyeGlint: boolean): EvaCpuBi
     pupilBitmap,
     dripsBitmap,
     orbBitmap,
-    memoryBytes,
+    memoryBytes: computeTotalMemoryBytes(isMobile),
   };
 }
 
-/**
- * Generates or returns the cached CPU ImageBitmaps for the Eva-01 layered rig.
- * Runs inside `evaWorker.ts` (`OffscreenCanvas` -> `ImageBitmap`) when available,
- * with automatic fallback to main-thread canvas generation.
- */
 export function ensureEvaArtBitmaps(
   isMobile = false,
   eyeGlint = true
@@ -188,7 +238,7 @@ export function ensureEvaArtBitmaps(
       const timeoutId = window.setTimeout(() => {
         worker.terminate();
         fallback();
-      }, 600);
+      }, 650);
 
       worker.onmessage = (ev: MessageEvent<EvaWorkerResponse>) => {
         if (settled) return;
@@ -196,20 +246,15 @@ export function ensureEvaArtBitmaps(
         window.clearTimeout(timeoutId);
         worker.terminate();
 
-        const mainSize = isMobile ? 768 : 1024;
-        const orderSize = Math.floor(mainSize / 2);
-        const memoryBytes =
-          4 * (mainSize * mainSize * 4 + orderSize * orderSize * 4) +
-          512 * 512 * 4 +
-          3 * (256 * 256 * 4);
-
         const data = ev.data;
         const built: EvaCpuBitmapCache = {
-          mainSize,
+          mainSize: isMobile ? 768 : 1024,
           backgroundBitmap: data.backgroundBitmap,
           backgroundOrderBitmap: data.backgroundOrderBitmap,
-          bodyBitmap: data.bodyBitmap,
-          bodyOrderBitmap: data.bodyOrderBitmap,
+          torsoBitmap: data.torsoBitmap,
+          torsoOrderBitmap: data.torsoOrderBitmap,
+          neckBitmap: data.neckBitmap,
+          neckOrderBitmap: data.neckOrderBitmap,
           headBitmap: data.headBitmap,
           headOrderBitmap: data.headOrderBitmap,
           jawBitmap: data.jawBitmap,
@@ -218,7 +263,7 @@ export function ensureEvaArtBitmaps(
           pupilBitmap: data.pupilBitmap,
           dripsBitmap: data.dripsBitmap,
           orbBitmap: generateOrbCanvas(256),
-          memoryBytes,
+          memoryBytes: computeTotalMemoryBytes(isMobile),
         };
         cachedCpuBitmaps = built;
         inFlightPromise = null;
@@ -272,8 +317,10 @@ export function getOrUploadEvaGpuBundle(
     activeGpuBundle = {
       backgroundTex: makeThreeTexture(cachedCpuBitmaps.backgroundBitmap, false),
       backgroundOrderTex: makeThreeTexture(cachedCpuBitmaps.backgroundOrderBitmap, true),
-      bodyTex: makeThreeTexture(cachedCpuBitmaps.bodyBitmap, false),
-      bodyOrderTex: makeThreeTexture(cachedCpuBitmaps.bodyOrderBitmap, true),
+      torsoTex: makeThreeTexture(cachedCpuBitmaps.torsoBitmap, false),
+      torsoOrderTex: makeThreeTexture(cachedCpuBitmaps.torsoOrderBitmap, true),
+      neckTex: makeThreeTexture(cachedCpuBitmaps.neckBitmap, false),
+      neckOrderTex: makeThreeTexture(cachedCpuBitmaps.neckOrderBitmap, true),
       headTex: makeThreeTexture(cachedCpuBitmaps.headBitmap, false),
       headOrderTex: makeThreeTexture(cachedCpuBitmaps.headOrderBitmap, true),
       jawTex: makeThreeTexture(cachedCpuBitmaps.jawBitmap, false),
@@ -287,33 +334,38 @@ export function getOrUploadEvaGpuBundle(
     };
   }
   if (renderer && !activeGpuBundle.gpuUploaded) {
-    renderer.initTexture(activeGpuBundle.backgroundTex);
-    renderer.initTexture(activeGpuBundle.backgroundOrderTex);
-    renderer.initTexture(activeGpuBundle.bodyTex);
-    renderer.initTexture(activeGpuBundle.bodyOrderTex);
-    renderer.initTexture(activeGpuBundle.headTex);
-    renderer.initTexture(activeGpuBundle.headOrderTex);
-    renderer.initTexture(activeGpuBundle.jawTex);
-    renderer.initTexture(activeGpuBundle.jawOrderTex);
-    renderer.initTexture(activeGpuBundle.eyeTex);
-    renderer.initTexture(activeGpuBundle.pupilTex);
-    renderer.initTexture(activeGpuBundle.dripsTex);
-    renderer.initTexture(activeGpuBundle.orbTex);
+    const allTex: THREE.Texture[] = [
+      activeGpuBundle.backgroundTex,
+      activeGpuBundle.backgroundOrderTex,
+      activeGpuBundle.torsoTex,
+      activeGpuBundle.torsoOrderTex,
+      activeGpuBundle.neckTex,
+      activeGpuBundle.neckOrderTex,
+      activeGpuBundle.headTex,
+      activeGpuBundle.headOrderTex,
+      activeGpuBundle.jawTex,
+      activeGpuBundle.jawOrderTex,
+      activeGpuBundle.eyeTex,
+      activeGpuBundle.pupilTex,
+      activeGpuBundle.dripsTex,
+      activeGpuBundle.orbTex,
+    ];
+    for (const t of allTex) {
+      renderer.initTexture(t);
+    }
     activeGpuBundle.gpuUploaded = true;
   }
   return activeGpuBundle;
 }
 
-/**
- * Disposes the GPU textures when leaving `/dashboard` while keeping `cachedCpuBitmaps`
- * in memory so returning to `/dashboard` re-uploads without re-running the worker.
- */
 export function disposeEvaGpuTextures(): void {
   if (!activeGpuBundle) return;
   activeGpuBundle.backgroundTex.dispose();
   activeGpuBundle.backgroundOrderTex.dispose();
-  activeGpuBundle.bodyTex.dispose();
-  activeGpuBundle.bodyOrderTex.dispose();
+  activeGpuBundle.torsoTex.dispose();
+  activeGpuBundle.torsoOrderTex.dispose();
+  activeGpuBundle.neckTex.dispose();
+  activeGpuBundle.neckOrderTex.dispose();
   activeGpuBundle.headTex.dispose();
   activeGpuBundle.headOrderTex.dispose();
   activeGpuBundle.jawTex.dispose();
@@ -328,3 +380,124 @@ export function disposeEvaGpuTextures(): void {
 export function getEvaMemoryUsageBytes(): number {
   return activeGpuBundle?.memoryBytes ?? cachedCpuBitmaps?.memoryBytes ?? 0;
 }
+
+export function buildEvaMetaSnapshot(): EvaMetaJson {
+  const sk = EVA_SKELETON;
+  const hPx = sk.headUnitPx;
+  const toBounds = (
+    part: string,
+    xMinH: number,
+    yMinH: number,
+    xMaxH: number,
+    yMaxH: number
+  ): EvaPartAlphaBounds => {
+    const xMin = Math.round(xMinH * hPx);
+    const yMin = Math.round(yMinH * hPx);
+    const xMax = Math.round(xMaxH * hPx);
+    const yMax = Math.round(yMaxH * hPx);
+    return {
+      part,
+      px: {
+        xMin,
+        yMin,
+        xMax,
+        yMax,
+        width: xMax - xMin,
+        height: yMax - yMin,
+      },
+      hUnits: {
+        xMinH: Number(xMinH.toFixed(3)),
+        yMinH: Number(yMinH.toFixed(3)),
+        xMaxH: Number(xMaxH.toFixed(3)),
+        yMaxH: Number(yMaxH.toFixed(3)),
+        widthH: Number((xMaxH - xMinH).toFixed(3)),
+        heightH: Number((yMaxH - yMinH).toFixed(3)),
+      },
+    };
+  };
+
+  const { headBoxH, joints } = sk;
+  const p = EVA_PROPORTIONS;
+
+  const parts: Record<string, EvaPartAlphaBounds> = {
+    torso: toBounds(
+      'torso',
+      0.0,
+      joints.napeBot[1],
+      joints.collarCenter[0] + 0.36,
+      joints.chestCropCenter[1]
+    ),
+    neck: toBounds(
+      'neck',
+      joints.napeTop[0] - 0.14,
+      joints.neckTop[1],
+      joints.throatTop[0] + 0.12,
+      joints.throatBot[1]
+    ),
+    head: toBounds(
+      'head',
+      headBoxH.xMinH,
+      headBoxH.yMinH,
+      headBoxH.xMaxH,
+      headBoxH.yMaxH
+    ),
+    horn: toBounds(
+      'horn',
+      joints.hornBase[0],
+      joints.hornTip[1],
+      joints.hornTip[0] + 0.04,
+      joints.hornBase[1]
+    ),
+    jaw: toBounds(
+      'jaw',
+      joints.jawHinge[0],
+      joints.jawHinge[1],
+      joints.jawTip[0],
+      joints.jawTip[1] + 0.08
+    ),
+    eye: toBounds(
+      'eye',
+      joints.eyeCenter[0] - p.head.eyeWidthH * 0.5,
+      joints.eyeCenter[1] - p.head.eyeHeightH * 0.5,
+      joints.eyeCenter[0] + p.head.eyeWidthH * 0.5,
+      joints.eyeCenter[1] + p.head.eyeHeightH * 0.5
+    ),
+    pupil: toBounds(
+      'pupil',
+      joints.eyeCenter[0] - 0.06,
+      joints.eyeCenter[1] - 0.06,
+      joints.eyeCenter[0] + 0.06,
+      joints.eyeCenter[1] + 0.06
+    ),
+    drips: toBounds(
+      'drips',
+      joints.jawTip[0] - 0.44,
+      joints.jawTip[1] - 0.14,
+      joints.jawTip[0],
+      joints.jawTip[1] + 0.52
+    ),
+  };
+
+  const visibleFigureHeightH = Number(
+    (parts.torso.hUnits.yMaxH - parts.head.hUnits.yMinH).toFixed(3)
+  );
+
+  return {
+    canvasSizePx: p.canvasSizePx,
+    headUnitPx: Number(hPx.toFixed(2)),
+    visibleHeads: p.visibleHeads,
+    parts,
+    measuredRatios: {
+      headToVisibleHeightRatio: Number(
+        (parts.head.hUnits.heightH / visibleFigureHeightH).toFixed(4)
+      ),
+      hornLengthH: Number(sk.metrics.hornLengthH.toFixed(3)),
+      hornAngleAboveHorizontalDeg: Number(sk.metrics.hornAngleAboveHorizontalDeg.toFixed(1)),
+      neckLeanDeg: Number(sk.metrics.neckLeanDeg.toFixed(1)),
+      neckWidthH: Number(sk.metrics.neckWidthH.toFixed(3)),
+      collarWidthH: Number(sk.metrics.collarWidthH.toFixed(3)),
+    },
+  };
+}
+
+export const EVA_META: EvaMetaJson = buildEvaMetaSnapshot();

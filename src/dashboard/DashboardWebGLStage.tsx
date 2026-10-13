@@ -1,31 +1,46 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { THEME_COLORS, THEME_VEC3 } from '../config/theme';
-import { clamp, lerp } from '../lib/math';
-import { useAppStore, type DiscordStatusType } from '../store/useAppStore';
-import { EVA_CONFIG, type SpringSpec } from './eva.config';
+import { THEME_COLORS, THEME_VEC3 } from '../config/theme.ts';
+import { clamp, lerp } from '../lib/math.ts';
+import { useAppStore, type DiscordStatusType } from '../store/useAppStore.ts';
+import { EVA_CONFIG, type SpringSpec } from './eva.config.ts';
 import {
   disposeEvaGpuTextures,
   ensureEvaArtBitmaps,
+  EVA_META,
   getEvaMemoryUsageBytes,
   getOrUploadEvaGpuBundle,
   subscribeEvaArtReady,
-} from './eva/evaGenerator';
+} from './eva/evaGenerator.ts';
+import { EVA_PROPORTIONS } from './eva/proportions.ts';
+import { EVA_SKELETON, hToPlaneWorld, type PointH } from './eva/skeleton.ts';
 import {
   interpolatePresenceProfiles,
   PRESENCE_BEHAVIOR_PROFILES,
   PRESENCE_TRANSITION_DURATION_SEC,
   resolveTargetPresenceProfile,
   type PresenceBehaviorProfile,
-} from './presenceBehavior';
-import { registerDashboardArtPreloader } from './prefetchDashboard';
+} from './presenceBehavior.ts';
+import { registerDashboardArtPreloader } from './prefetchDashboard.ts';
 import sightLineFrag from './shaders/sightLine.frag.glsl';
-import { STAGE_DASHBOARD_CONFIG } from './stage.config';
-import { stageInputState } from './stageInput';
+import { STAGE_DASHBOARD_CONFIG } from './stage.config.ts';
+import { stageInputState } from './stageInput.ts';
 
 interface DashboardWebGLStageProps {
   role?: 'main' | 'sub';
+}
+
+export interface DashboardDebugGeometry {
+  headUnitScreenPx: number;
+  headTopLeftScreenPx: [number, number];
+  headBoxScreenPx: { x: number; y: number; width: number; height: number };
+  neckBaseScreenPx: [number, number];
+  neckTopScreenPx: [number, number];
+  throatBotScreenPx: [number, number];
+  hornBaseScreenPx: [number, number];
+  hornTipScreenPx: [number, number];
+  jawTipScreenPx: [number, number];
 }
 
 export interface DashboardTelemetrySnapshot {
@@ -48,11 +63,13 @@ export interface DashboardTelemetrySnapshot {
   currentProfile: PresenceBehaviorProfile;
   targetStatus: DiscordStatusType;
   transitionProgress: number;
+  debugGeometry?: DashboardDebugGeometry;
 }
 
 declare global {
   interface Window {
     __DASHBOARD_TELEMETRY__?: DashboardTelemetrySnapshot;
+    __EVA_META__?: typeof EVA_META;
   }
 }
 
@@ -266,7 +283,6 @@ const ORB_STAGE_FRAG = /* glsl */ `
       return;
     }
 
-    // In linear RGB, #0A0A0A ink has r < 0.02 while #D4141C red has r > 0.55
     bool isInkHatch = inkSample.a > 0.35 && inkSample.r < 0.18 && inkSample.g < 0.18;
     bool isRedPlate = (redSample.r - max(redSample.g, redSample.b)) > 0.18 && redSample.a > 0.2;
 
@@ -289,6 +305,13 @@ function createDummyPaperTex(): THREE.DataTexture {
   return tex;
 }
 
+const P_SIZE = EVA_CONFIG.planeWorldSize;
+const PIVOT_CHEST = hToPlaneWorld(EVA_SKELETON.joints.chestCropCenter, P_SIZE);
+const PIVOT_NECK = hToPlaneWorld(EVA_SKELETON.joints.neckBase, P_SIZE);
+const PIVOT_HEAD = hToPlaneWorld(EVA_SKELETON.joints.neckTop, P_SIZE);
+const PIVOT_JAW = hToPlaneWorld(EVA_SKELETON.joints.jawHinge, P_SIZE);
+const PIVOT_EYE = hToPlaneWorld(EVA_SKELETON.joints.eyeCenter, P_SIZE);
+
 export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
   role = 'main',
 }) => {
@@ -297,7 +320,8 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
 
   const stageGroupRef = useRef<THREE.Group | null>(null);
   const bgMatRef = useRef<THREE.ShaderMaterial | null>(null);
-  const bodyMatRef = useRef<THREE.ShaderMaterial | null>(null);
+  const torsoMatRef = useRef<THREE.ShaderMaterial | null>(null);
+  const neckMatRef = useRef<THREE.ShaderMaterial | null>(null);
   const headMatRef = useRef<THREE.ShaderMaterial | null>(null);
   const jawMatRef = useRef<THREE.ShaderMaterial | null>(null);
   const eyeMatRef = useRef<THREE.ShaderMaterial | null>(null);
@@ -307,7 +331,8 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
   const sightLineMatRef = useRef<THREE.ShaderMaterial | null>(null);
 
   const rigRootGroupRef = useRef<THREE.Group | null>(null);
-  const bodyGroupRef = useRef<THREE.Group | null>(null);
+  const torsoGroupRef = useRef<THREE.Group | null>(null);
+  const neckGroupRef = useRef<THREE.Group | null>(null);
   const headGroupRef = useRef<THREE.Group | null>(null);
   const jawGroupRef = useRef<THREE.Group | null>(null);
   const eyeWorldGroupRef = useRef<THREE.Group | null>(null);
@@ -317,7 +342,6 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
   const revealStartRef = useRef<number | null>(null);
   const prevRouteRef = useRef<string>('/');
 
-  // Damped spring state for pupil, head, and jaw
   const springsRef = useRef({
     pupilX: { value: 0, velocity: 0 } as SpringState1D,
     pupilY: { value: 0, velocity: 0 } as SpringState1D,
@@ -325,10 +349,9 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
     headY: { value: 0, velocity: 0 } as SpringState1D,
     headRotDeg: { value: 0, velocity: 0 } as SpringState1D,
     headScale: { value: 1, velocity: 0 } as SpringState1D,
-    jawDeg: { value: 10, velocity: 0 } as SpringState1D,
+    jawDeg: { value: 11.5, velocity: 0 } as SpringState1D,
   });
 
-  // Presence profile 0.8s smooth transition state
   const presenceTransitionRef = useRef<{
     fromProfile: PresenceBehaviorProfile;
     toProfile: PresenceBehaviorProfile;
@@ -343,11 +366,14 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
     lastKey: 'online:false',
   });
 
-  const tempEyeWorldVec = useMemo(() => new THREE.Vector3(), []);
+  const tempVec3 = useMemo(() => new THREE.Vector3(), []);
   const tempOrbWorldVec = useMemo(() => new THREE.Vector3(), []);
   const dummyTex = useMemo(() => createDummyPaperTex(), []);
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.__EVA_META__ = EVA_META;
+    }
     const unsub = subscribeEvaArtReady(() => {
       setArtTick((t) => t + 1);
     });
@@ -372,7 +398,8 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
   });
 
   const bgUniforms = useMemo(() => makeRevealUniforms(true), [dummyTex]);
-  const bodyUniforms = useMemo(() => makeRevealUniforms(false), [dummyTex]);
+  const torsoUniforms = useMemo(() => makeRevealUniforms(false), [dummyTex]);
+  const neckUniforms = useMemo(() => makeRevealUniforms(false), [dummyTex]);
   const headUniforms = useMemo(() => makeRevealUniforms(false), [dummyTex]);
   const jawUniforms = useMemo(() => makeRevealUniforms(false), [dummyTex]);
 
@@ -432,8 +459,8 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
 
   const sightLineUniforms = useMemo(
     () => ({
-      uEyeUv: { value: new THREE.Vector2(0.33, 0.4) },
-      uOrbUv: { value: new THREE.Vector2(0.6, 0.39) },
+      uEyeUv: { value: new THREE.Vector2(0.32, 0.42) },
+      uOrbUv: { value: new THREE.Vector2(0.60, 0.39) },
       uResolution: { value: new THREE.Vector2(1440, 900) },
       uTime: { value: 0.0 },
       uReveal: { value: 1.0 },
@@ -480,7 +507,6 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
       store.setDashboardRevealP(store.reducedMotion ? 1 : 0);
     }
 
-    // Start the 1.2s stroke-by-stroke reveal once gpuBundle is ready
     if (role === 'main' && gpuBundle && revealStartRef.current === null) {
       revealStartRef.current = t;
     }
@@ -501,7 +527,6 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
       revealP = 1.0;
     }
 
-    // 1. Update Presence Behavior Profile (eased over 0.8s, never snapping)
     const pKey = `${store.discord.status}:${store.discord.unreachable}`;
     const pState = presenceTransitionRef.current;
     if (pKey !== pState.lastKey) {
@@ -524,7 +549,6 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
     );
     pState.currentProfile = profile;
 
-    // 2. Compute Target Orb Position (Idle Lissajous vs Pointer vs Keyboard vs DND/Offline Center Park)
     const isMob = size.width < 768;
     const activeOrbRegion = isMob
       ? STAGE_DASHBOARD_CONFIG.mobileOrbRegion
@@ -563,14 +587,14 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
       desiredV = stageInputState.keyboardUv[1];
     }
 
-    // Soft repulsion limit so the orb NEVER enters minFaceDistance around faceCenterPos
     const fdx = desiredU - faceCenter[0];
     const fdy = desiredV - faceCenter[1];
     const fDist = Math.hypot(fdx, fdy);
     if (fDist < minFaceDist) {
-      const safeLen = Math.max(0.0001, fDist);
-      desiredU = faceCenter[0] + (fdx / safeLen) * minFaceDist;
-      desiredV = faceCenter[1] + (fdy / safeLen) * minFaceDist;
+      const safeDirX = fDist < 0.001 ? 1.0 : fdx / fDist;
+      const safeDirY = fDist < 0.001 ? 0.0 : fdy / fDist;
+      desiredU = faceCenter[0] + safeDirX * minFaceDist;
+      desiredV = faceCenter[1] + safeDirY * minFaceDist;
     }
 
     const [prevOrbU, prevOrbV] = store.dashboardOrbUv;
@@ -584,28 +608,51 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
     let nextOrbU = lerp(prevOrbU, desiredU, smoothAlpha);
     let nextOrbV = lerp(prevOrbV, desiredV, smoothAlpha);
 
-    // Enforce minFaceDistance on the interpolated orb position as well
     const curFdx = nextOrbU - faceCenter[0];
     const curFdy = nextOrbV - faceCenter[1];
     const curFDist = Math.hypot(curFdx, curFdy);
     if (curFDist < minFaceDist) {
-      const safeLen = Math.max(0.0001, curFDist);
-      nextOrbU = faceCenter[0] + (curFdx / safeLen) * minFaceDist;
-      nextOrbV = faceCenter[1] + (curFdy / safeLen) * minFaceDist;
+      const safeDirX = curFDist < 0.001 ? 1.0 : curFdx / curFDist;
+      const safeDirY = curFDist < 0.001 ? 0.0 : curFdy / curFDist;
+      nextOrbU = faceCenter[0] + safeDirX * minFaceDist;
+      nextOrbV = faceCenter[1] + safeDirY * minFaceDist;
     }
 
     if (role === 'main') {
       store.setDashboardOrbUv([nextOrbU, nextOrbV]);
     }
 
-    // 3. Position Rig for Desktop vs Mobile and compute Gaze Vector
+    const persp = camera as THREE.PerspectiveCamera;
+    const camZ = persp.position.z || 4.8;
+    const vHAtZero = 2 * Math.tan(THREE.MathUtils.degToRad((persp.fov || 50) * 0.5)) * camZ;
+    const vWAtZero = vHAtZero * (persp.aspect || size.width / Math.max(1, size.height));
+
     if (rigRootGroupRef.current) {
       if (isMob) {
-        rigRootGroupRef.current.position.set(-0.78, 0.85, 0);
-        rigRootGroupRef.current.scale.set(0.68, 0.68, 1);
+        const mobStageWorldH = vHAtZero * 0.42;
+        const desiredHWorld = mobStageWorldH / EVA_PROPORTIONS.visibleHeads;
+        const rigScale = desiredHWorld / EVA_CONFIG.headUnitWorld;
+        const bottomWorldY = persp.position.y + vHAtZero * (0.5 - 0.44);
+        const leftWorldX = -vWAtZero * 0.5;
+        rigRootGroupRef.current.scale.set(rigScale, rigScale, 1);
+        rigRootGroupRef.current.position.set(
+          leftWorldX + P_SIZE * 0.5 * rigScale - 0.18 * desiredHWorld,
+          bottomWorldY + P_SIZE * 0.5 * rigScale - 0.05 * desiredHWorld,
+          0
+        );
       } else {
-        rigRootGroupRef.current.position.set(-1.55, -0.1, 0);
-        rigRootGroupRef.current.scale.set(1, 1, 1);
+        // Desktop: bust spans ~86% of stage height, cropped at left and bottom edges
+        const desktopStageWorldH = vHAtZero * 0.86;
+        const desiredHWorld = desktopStageWorldH / EVA_PROPORTIONS.visibleHeads;
+        const rigScale = desiredHWorld / EVA_CONFIG.headUnitWorld;
+        const bottomWorldY = persp.position.y - vHAtZero * 0.5;
+        const leftWorldX = -vWAtZero * 0.5;
+        rigRootGroupRef.current.scale.set(rigScale, rigScale, 1);
+        rigRootGroupRef.current.position.set(
+          leftWorldX + P_SIZE * 0.5 * rigScale - 0.22 * desiredHWorld,
+          bottomWorldY + P_SIZE * 0.5 * rigScale - 0.08 * desiredHWorld,
+          0
+        );
       }
     }
 
@@ -618,31 +665,26 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
     const gazeDirX = gazeDx / Math.max(0.001, gazeDist);
     const gazeDirY = gazeDy / Math.max(0.001, gazeDist);
 
-    // Proximity factor in [0..1] (1 = closest allowed to face, 0 = far edge)
     const [proxNear, proxFar] = EVA_CONFIG.jawProximityRange;
     const proximity = 1.0 - clamp((gazeDist - proxNear) / (proxFar - proxNear), 0, 1);
 
-    // Pupil target offset (up to 35% of eyeWorldRadius)
     const maxPupilSlide = EVA_CONFIG.pupilMaxSlideFraction * EVA_CONFIG.eyeWorldRadius;
     const reachFactor = clamp(gazeDist / 0.36, 0, 1) * profile.trackingGain;
     const targetPupilX = gazeDirX * maxPupilSlide * reachFactor;
     const targetPupilY = -gazeDirY * maxPupilSlide * reachFactor;
 
-    // Head translation (up to 2.5% of headWorldWidth), rotation (±6° + droop), scale (±1.5%)
     const maxHeadTrans = EVA_CONFIG.headMaxTranslateFraction * EVA_CONFIG.headWorldWidth;
     const targetHeadX = gazeDirX * maxHeadTrans * reachFactor;
     const targetHeadY = -gazeDirY * maxHeadTrans * 0.7 * reachFactor;
 
-    // Monotonic head pitch angle with vertical/horizontal gaze + presence droop
+    const normalizedPitchSignal = clamp(-gazeDy * 1.65 + (gazeDx - 0.25) * 0.35, -1, 1);
     const gazePitchDeg =
-      clamp((-gazeDy * 1.65 + (gazeDx - 0.25) * 0.35) * EVA_CONFIG.headMaxRotationDeg, -EVA_CONFIG.headMaxRotationDeg, EVA_CONFIG.headMaxRotationDeg) *
-      profile.trackingGain;
+      normalizedPitchSignal * EVA_CONFIG.headMaxRotationDeg * profile.trackingGain;
     const targetHeadRotDeg = gazePitchDeg + profile.headDroopDeg;
 
     const targetHeadScale =
       1.0 + (proximity - 0.45) * 2.0 * EVA_CONFIG.headMaxScaleDelta * profile.trackingGain;
 
-    // Jaw opening angle (jawMin 6° to jawMax 25° when tracking, 0° when dormant offline)
     const activeJawFraction = clamp(
       profile.jawBase + proximity * profile.jawProximityGain,
       0,
@@ -653,7 +695,6 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
         ? 0.0
         : lerp(EVA_CONFIG.jawMinDeg, EVA_CONFIG.jawMaxDeg, activeJawFraction);
 
-    // Step damped springs (scaled by profile.trackingSpeedMultiplier)
     const dtSpring = delta * Math.max(0.25, profile.trackingSpeedMultiplier);
     const sp = springsRef.current;
     const curPupilX = stepSpring1D(sp.pupilX, targetPupilX, EVA_CONFIG.springs.pupil, dtSpring);
@@ -674,7 +715,6 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
     );
     const curJawDeg = stepSpring1D(sp.jawDeg, targetJawDeg, EVA_CONFIG.springs.jaw, dtSpring);
 
-    // 12fps Predatory Micro-Twitch (±0.4°) & Open-Jaw Shake (1-2px)
     const qTick = Math.floor(t * EVA_CONFIG.jitterFps);
     const jitterActive = store.reducedMotion ? 0 : profile.jitterScale;
     const microTwitchDeg =
@@ -692,16 +732,30 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
     const jawShakeX = hashStep(qTick * 5.71) * jawShakeAmp;
     const jawShakeY = hashStep(qTick * 7.13) * jawShakeAmp;
 
-    // Apply transforms to rigged groups
-    if (bodyGroupRef.current) {
-      const breathe = store.reducedMotion
-        ? 0
-        : Math.sin(t * EVA_CONFIG.breathingFreqRad) * EVA_CONFIG.breathingScaleAmp;
-      bodyGroupRef.current.scale.set(1 + breathe * 0.5, 1 + breathe, 1);
+    const breathe = store.reducedMotion
+      ? 0
+      : Math.sin(t * EVA_CONFIG.breathingFreqRad) * EVA_CONFIG.breathingScaleAmp;
+
+    if (torsoGroupRef.current) {
+      torsoGroupRef.current.position.set(PIVOT_CHEST[0], PIVOT_CHEST[1], 0);
+      torsoGroupRef.current.scale.set(1 + breathe * 0.4, 1 + breathe, 1);
+    }
+
+    if (neckGroupRef.current) {
+      neckGroupRef.current.position.set(
+        PIVOT_NECK[0] - PIVOT_CHEST[0],
+        PIVOT_NECK[1] - PIVOT_CHEST[1],
+        0.01
+      );
+      neckGroupRef.current.rotation.z = THREE.MathUtils.degToRad(curHeadRotDeg * 0.28);
     }
 
     if (headGroupRef.current) {
-      headGroupRef.current.position.set(-0.7666 + curHeadX, 0.6201 + curHeadY, 0);
+      headGroupRef.current.position.set(
+        PIVOT_HEAD[0] - PIVOT_CHEST[0] + curHeadX,
+        PIVOT_HEAD[1] - PIVOT_CHEST[1] + curHeadY,
+        0.03
+      );
       headGroupRef.current.rotation.z = THREE.MathUtils.degToRad(
         curHeadRotDeg + microTwitchDeg
       );
@@ -709,8 +763,11 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
     }
 
     if (jawGroupRef.current) {
-      jawGroupRef.current.position.set(0.4053 + jawShakeX, -0.0635 + jawShakeY, 0.02);
-      // Jaw art is drawn at ~11.5 deg open base; rotate relative to 11.5 deg so it opens wider with proximity and closes when offline
+      jawGroupRef.current.position.set(
+        PIVOT_JAW[0] - PIVOT_HEAD[0] + jawShakeX,
+        PIVOT_JAW[1] - PIVOT_HEAD[1] + jawShakeY,
+        0.01
+      );
       jawGroupRef.current.rotation.z = THREE.MathUtils.degToRad(-(curJawDeg - 11.5));
     }
 
@@ -718,9 +775,7 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
       pupilMeshRef.current.position.set(curPupilX, curPupilY, 0.01);
     }
 
-    // 4. Position Red Orb in world space and project exact Eye & Orb screen UVs for Sight Line
-    const persp = camera as THREE.PerspectiveCamera;
-    const camDist = Math.abs(persp.position.z - 0.12);
+    const camDist = Math.abs(camZ - 0.12);
     const vH = 2 * Math.tan(THREE.MathUtils.degToRad((persp.fov || 50) * 0.5)) * camDist;
     const vW = vH * (persp.aspect || size.width / Math.max(1, size.height));
 
@@ -738,7 +793,6 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
       orbGroupRef.current.scale.set(pulseScale, pulseScale, 1);
     }
 
-    // Update world matrices so projected eye & orb coordinates are exact to the sub-pixel
     if (stageGroupRef.current) {
       stageGroupRef.current.updateMatrixWorld(true);
     }
@@ -747,11 +801,11 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
     let projectedOrbUv: [number, number] = [nextOrbU, nextOrbV];
 
     if (eyeWorldGroupRef.current) {
-      eyeWorldGroupRef.current.getWorldPosition(tempEyeWorldVec);
-      tempEyeWorldVec.project(camera);
+      eyeWorldGroupRef.current.getWorldPosition(tempVec3);
+      tempVec3.project(camera);
       projectedEyeUv = [
-        clamp((tempEyeWorldVec.x + 1) * 0.5, 0.01, 0.99),
-        clamp((1 - tempEyeWorldVec.y) * 0.5, 0.01, 0.99),
+        clamp((tempVec3.x + 1) * 0.5, 0.01, 0.99),
+        clamp((1 - tempVec3.y) * 0.5, 0.01, 0.99),
       ];
     }
     if (orbGroupRef.current) {
@@ -763,28 +817,30 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
       ];
     }
 
-    // 5. Bind textures & uniforms
     if (gpuBundle) {
-      if (bgMatRef.current) {
-        bgMatRef.current.uniforms.uTex.value = gpuBundle.backgroundTex;
-        bgMatRef.current.uniforms.uOrderTex.value = gpuBundle.backgroundOrderTex;
-        bgMatRef.current.uniforms.uReveal.value = Math.max(0.25, revealP);
-      }
-      if (bodyMatRef.current) {
-        bodyMatRef.current.uniforms.uTex.value = gpuBundle.bodyTex;
-        bodyMatRef.current.uniforms.uOrderTex.value = gpuBundle.bodyOrderTex;
-        bodyMatRef.current.uniforms.uReveal.value = revealP;
-      }
-      if (headMatRef.current) {
-        headMatRef.current.uniforms.uTex.value = gpuBundle.headTex;
-        headMatRef.current.uniforms.uOrderTex.value = gpuBundle.headOrderTex;
-        headMatRef.current.uniforms.uReveal.value = revealP;
-      }
-      if (jawMatRef.current) {
-        jawMatRef.current.uniforms.uTex.value = gpuBundle.jawTex;
-        jawMatRef.current.uniforms.uOrderTex.value = gpuBundle.jawOrderTex;
-        jawMatRef.current.uniforms.uReveal.value = revealP;
-      }
+      const bindRevealLayer = (
+        mat: THREE.ShaderMaterial | null,
+        tex: THREE.Texture,
+        orderTex: THREE.Texture,
+        rev = revealP
+      ) => {
+        if (!mat) return;
+        mat.uniforms.uTex.value = tex;
+        mat.uniforms.uOrderTex.value = orderTex;
+        mat.uniforms.uReveal.value = rev;
+      };
+
+      bindRevealLayer(
+        bgMatRef.current,
+        gpuBundle.backgroundTex,
+        gpuBundle.backgroundOrderTex,
+        Math.max(0.25, revealP)
+      );
+      bindRevealLayer(torsoMatRef.current, gpuBundle.torsoTex, gpuBundle.torsoOrderTex);
+      bindRevealLayer(neckMatRef.current, gpuBundle.neckTex, gpuBundle.neckOrderTex);
+      bindRevealLayer(headMatRef.current, gpuBundle.headTex, gpuBundle.headOrderTex);
+      bindRevealLayer(jawMatRef.current, gpuBundle.jawTex, gpuBundle.jawOrderTex);
+
       if (eyeMatRef.current) {
         eyeMatRef.current.uniforms.uTex.value = gpuBundle.eyeTex;
         eyeMatRef.current.uniforms.uReveal.value = revealP;
@@ -835,8 +891,23 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
       );
     }
 
-    // 6. Publish live telemetry for verification suites
-    if (role === 'main' && typeof window !== 'undefined') {
+    if (role === 'main' && typeof window !== 'undefined' && rigRootGroupRef.current) {
+      const projectSkeletonPointToScreenPx = (ptH: PointH): [number, number] => {
+        const [lx, ly] = hToPlaneWorld(ptH, P_SIZE);
+        tempVec3.set(lx, ly, 0);
+        rigRootGroupRef.current!.localToWorld(tempVec3);
+        tempVec3.project(camera);
+        return [
+          ((tempVec3.x + 1) * 0.5) * size.width,
+          ((1 - tempVec3.y) * 0.5) * size.height,
+        ];
+      };
+
+      const { headBoxH, joints } = EVA_SKELETON;
+      const headTL = projectSkeletonPointToScreenPx([headBoxH.xMinH, headBoxH.yMinH]);
+      const headBR = projectSkeletonPointToScreenPx([headBoxH.xMaxH, headBoxH.yMaxH]);
+      const headUnitScreenPx = Math.abs(headBR[1] - headTL[1]);
+
       const eyePx: [number, number] = [
         projectedEyeUv[0] * size.width,
         projectedEyeUv[1] * size.height,
@@ -845,6 +916,7 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
         projectedOrbUv[0] * size.width,
         projectedOrbUv[1] * size.height,
       ];
+
       window.__DASHBOARD_TELEMETRY__ = {
         eyeScreenUv: projectedEyeUv,
         orbScreenUv: projectedOrbUv,
@@ -868,13 +940,28 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
         currentProfile: { ...profile },
         targetStatus: store.discord.unreachable ? 'offline' : store.discord.status,
         transitionProgress: transP,
+        debugGeometry: {
+          headUnitScreenPx,
+          headTopLeftScreenPx: headTL,
+          headBoxScreenPx: {
+            x: headTL[0],
+            y: headTL[1],
+            width: Math.abs(headBR[0] - headTL[0]),
+            height: headUnitScreenPx,
+          },
+          neckBaseScreenPx: projectSkeletonPointToScreenPx(joints.neckBase),
+          neckTopScreenPx: projectSkeletonPointToScreenPx(joints.neckTop),
+          throatBotScreenPx: projectSkeletonPointToScreenPx(joints.throatBot),
+          hornBaseScreenPx: projectSkeletonPointToScreenPx(joints.hornBase),
+          hornTipScreenPx: projectSkeletonPointToScreenPx(joints.hornTip),
+          jawTipScreenPx: projectSkeletonPointToScreenPx(joints.jawTip),
+        },
       };
     }
   });
 
   return (
     <group ref={stageGroupRef} name={`dashboard-webgl-stage-${role}`} visible={false}>
-      {/* 1. Paper Stage Background with faint radial speed lines & spatter */}
       <mesh position={[0, 0, -2.0]} renderOrder={0}>
         <planeGeometry args={[18, 12]} />
         <shaderMaterial
@@ -887,48 +974,36 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
         />
       </mesh>
 
-      {/* Eva-01 Berserk Silhouette Layered Rig (Left ~52% of stage) */}
-      <group ref={rigRootGroupRef} position={[-1.55, -0.1, 0]}>
-        {/* 2. Body & Shoulders Layer (breathing sway) */}
-        <group ref={bodyGroupRef} position={[0, -1.6, -0.2]}>
-          <mesh position={[0, 1.6, 0]} renderOrder={2}>
-            <planeGeometry args={[5.0, 5.0]} />
+      <group ref={rigRootGroupRef}>
+        <group ref={torsoGroupRef} position={[PIVOT_CHEST[0], PIVOT_CHEST[1], 0]}>
+          <mesh position={[-PIVOT_CHEST[0], -PIVOT_CHEST[1], 0]} renderOrder={1}>
+            <planeGeometry args={[P_SIZE, P_SIZE]} />
             <shaderMaterial
-              ref={bodyMatRef}
+              ref={torsoMatRef}
               vertexShader={LAYER_VERT}
               fragmentShader={EVA_REVEAL_FRAG}
-              uniforms={bodyUniforms}
-              transparent
-              depthWrite={false}
-              toneMapped={false}
-            />
-          </mesh>
-        </group>
-
-        {/* 3. Head Layer (pivoted at neck base `(355, 385)` -> `(-0.7666, +0.6201)`) */}
-        <group ref={headGroupRef} position={[-0.7666, 0.6201, 0]}>
-          <mesh position={[0.7666, -0.6201, 0]} renderOrder={3}>
-            <planeGeometry args={[5.0, 5.0]} />
-            <shaderMaterial
-              ref={headMatRef}
-              vertexShader={LAYER_VERT}
-              fragmentShader={EVA_REVEAL_FRAG}
-              uniforms={headUniforms}
+              uniforms={torsoUniforms}
               transparent
               depthWrite={false}
               toneMapped={false}
             />
           </mesh>
 
-          {/* 4. Hinged Lower Jaw Layer (pivoted at jaw hinge `(438, 398)` -> `(+0.4053, -0.0635)` relative to neck pivot) */}
-          <group ref={jawGroupRef} position={[0.4053, -0.0635, 0.02]}>
-            <mesh position={[0.3613, -0.5566, 0]} renderOrder={4}>
-              <planeGeometry args={[5.0, 5.0]} />
+          <group
+            ref={neckGroupRef}
+            position={[
+              PIVOT_NECK[0] - PIVOT_CHEST[0],
+              PIVOT_NECK[1] - PIVOT_CHEST[1],
+              0.01,
+            ]}
+          >
+            <mesh position={[-PIVOT_NECK[0], -PIVOT_NECK[1], 0]} renderOrder={2}>
+              <planeGeometry args={[P_SIZE, P_SIZE]} />
               <shaderMaterial
-                ref={jawMatRef}
+                ref={neckMatRef}
                 vertexShader={LAYER_VERT}
                 fragmentShader={EVA_REVEAL_FRAG}
-                uniforms={jawUniforms}
+                uniforms={neckUniforms}
                 transparent
                 depthWrite={false}
                 toneMapped={false}
@@ -936,51 +1011,103 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
             </mesh>
           </group>
 
-          {/* 5. Eye Sclera & Sliding Pupil on Brow Plate (`(486, 284)` -> `(+0.6396, +0.4932)` relative to neck pivot) */}
-          <group ref={eyeWorldGroupRef} position={[0.6396, 0.4932, 0.05]}>
-            <mesh renderOrder={5}>
-              <planeGeometry args={[0.48, 0.48]} />
+          <group
+            ref={headGroupRef}
+            position={[
+              PIVOT_HEAD[0] - PIVOT_CHEST[0],
+              PIVOT_HEAD[1] - PIVOT_CHEST[1],
+              0.03,
+            ]}
+          >
+            <mesh position={[-PIVOT_HEAD[0], -PIVOT_HEAD[1], 0]} renderOrder={3}>
+              <planeGeometry args={[P_SIZE, P_SIZE]} />
               <shaderMaterial
-                ref={eyeMatRef}
+                ref={headMatRef}
                 vertexShader={LAYER_VERT}
-                fragmentShader={EVA_EYE_FRAG}
-                uniforms={eyeUniforms}
+                fragmentShader={EVA_REVEAL_FRAG}
+                uniforms={headUniforms}
                 transparent
                 depthWrite={false}
                 toneMapped={false}
               />
             </mesh>
-            <mesh ref={pupilMeshRef} position={[0, 0, 0.01]} renderOrder={6}>
-              <planeGeometry args={[0.42, 0.42]} />
+
+            <group
+              ref={jawGroupRef}
+              position={[
+                PIVOT_JAW[0] - PIVOT_HEAD[0],
+                PIVOT_JAW[1] - PIVOT_HEAD[1],
+                0.01,
+              ]}
+            >
+              <mesh position={[-PIVOT_JAW[0], -PIVOT_JAW[1], 0]} renderOrder={4}>
+                <planeGeometry args={[P_SIZE, P_SIZE]} />
+                <shaderMaterial
+                  ref={jawMatRef}
+                  vertexShader={LAYER_VERT}
+                  fragmentShader={EVA_REVEAL_FRAG}
+                  uniforms={jawUniforms}
+                  transparent
+                  depthWrite={false}
+                  toneMapped={false}
+                />
+              </mesh>
+            </group>
+
+            <group
+              ref={eyeWorldGroupRef}
+              position={[
+                PIVOT_EYE[0] - PIVOT_HEAD[0],
+                PIVOT_EYE[1] - PIVOT_HEAD[1],
+                0.02,
+              ]}
+            >
+              <mesh renderOrder={5}>
+                <planeGeometry
+                  args={[EVA_CONFIG.eyePlaneWorldSize, EVA_CONFIG.eyePlaneWorldSize]}
+                />
+                <shaderMaterial
+                  ref={eyeMatRef}
+                  vertexShader={LAYER_VERT}
+                  fragmentShader={EVA_EYE_FRAG}
+                  uniforms={eyeUniforms}
+                  transparent
+                  depthWrite={false}
+                  toneMapped={false}
+                />
+              </mesh>
+              <mesh ref={pupilMeshRef} position={[0, 0, 0.01]} renderOrder={6}>
+                <planeGeometry
+                  args={[EVA_CONFIG.pupilPlaneWorldSize, EVA_CONFIG.pupilPlaneWorldSize]}
+                />
+                <shaderMaterial
+                  ref={pupilMatRef}
+                  vertexShader={LAYER_VERT}
+                  fragmentShader={EVA_PUPIL_FRAG}
+                  uniforms={pupilUniforms}
+                  transparent
+                  depthWrite={false}
+                  toneMapped={false}
+                />
+              </mesh>
+            </group>
+
+            <mesh position={[-PIVOT_HEAD[0], -PIVOT_HEAD[1], 0.015]} renderOrder={7}>
+              <planeGeometry args={[P_SIZE, P_SIZE]} />
               <shaderMaterial
-                ref={pupilMatRef}
+                ref={dripsMatRef}
                 vertexShader={LAYER_VERT}
-                fragmentShader={EVA_PUPIL_FRAG}
-                uniforms={pupilUniforms}
+                fragmentShader={EVA_DRIPS_FRAG}
+                uniforms={dripsUniforms}
                 transparent
                 depthWrite={false}
                 toneMapped={false}
               />
             </mesh>
           </group>
-
-          {/* 6. Looping Ink Drips Layer */}
-          <mesh position={[0.7666, -0.6201, 0.04]} renderOrder={7}>
-            <planeGeometry args={[5.0, 5.0]} />
-            <shaderMaterial
-              ref={dripsMatRef}
-              vertexShader={LAYER_VERT}
-              fragmentShader={EVA_DRIPS_FRAG}
-              uniforms={dripsUniforms}
-              transparent
-              depthWrite={false}
-              toneMapped={false}
-            />
-          </mesh>
         </group>
       </group>
 
-      {/* 7. Hand-Inked Dashed Sight Line & Target Reticle Shader Plane */}
       <mesh renderOrder={8} frustumCulled={false}>
         <planeGeometry args={[2, 2]} />
         <shaderMaterial
@@ -995,7 +1122,6 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
         />
       </mesh>
 
-      {/* 8. Red Target Orb (Hand-inked disc with curved hatching, ripple & misregistration) */}
       <group ref={orbGroupRef} position={[0.6, 0.35, 0.12]}>
         <mesh renderOrder={9}>
           <planeGeometry args={[0.58, 0.58]} />

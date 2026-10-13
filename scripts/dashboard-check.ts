@@ -1027,9 +1027,10 @@ function simulateSteadyGazeAtOrb(orbU: number, orbV: number) {
   const fdy = v - faceCenter[1];
   const fDist = Math.hypot(fdx, fdy);
   if (fDist < minFaceDist) {
-    const safeLen = Math.max(0.0001, fDist);
-    u = faceCenter[0] + (fdx / safeLen) * minFaceDist;
-    v = faceCenter[1] + (fdy / safeLen) * minFaceDist;
+    const safeDirX = fDist < 0.001 ? 1.0 : fdx / fDist;
+    const safeDirY = fDist < 0.001 ? 0.0 : fdy / fDist;
+    u = faceCenter[0] + safeDirX * minFaceDist;
+    v = faceCenter[1] + safeDirY * minFaceDist;
   }
 
   const eyeUv = STAGE_DASHBOARD_CONFIG.eyeScreenPos;

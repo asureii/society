@@ -1,53 +1,51 @@
 /**
- * EVA-01 GAZE TRACKING, SPRING DYNAMICS & RIG CONFIGURATION
+ * EVA-01 GAZE TRACKING, SPRING DYNAMICS & BUST RIG CONFIGURATION
  * (src/dashboard/eva.config.ts)
  */
 
+import { EVA_PROPORTIONS } from './eva/proportions.ts';
+import { EVA_SKELETON } from './eva/skeleton.ts';
+
 export interface SpringSpec {
-  /** Spring stiffness (higher = snappier response) */
   stiffness: number;
-  /** Spring damping (< critical damping gives slight predatory overshoot) */
   damping: number;
 }
 
 export interface EvaRigConfig {
-  /** Spring parameters for pupil, head, and jaw */
+  planeWorldSize: number;
+  headUnitWorld: number;
   springs: {
     pupil: SpringSpec;
     head: SpringSpec;
     jaw: SpringSpec;
+    neck: SpringSpec;
+    torso: SpringSpec;
   };
-  /** Pupil slide limit as a fraction of the eye radius (~35%) */
   pupilMaxSlideFraction: number;
-  /** Eye world-space radius on the head plane */
   eyeWorldRadius: number;
-  /** Head translation limit as a fraction of head width (~2.5%) */
+  eyePlaneWorldSize: number;
+  pupilPlaneWorldSize: number;
   headMaxTranslateFraction: number;
-  /** Head width in world units */
   headWorldWidth: number;
-  /** Head rotation limit in degrees (±6°) */
   headMaxRotationDeg: number;
-  /** Head scale modulation with orb proximity (±1.5%) */
   headMaxScaleDelta: number;
-  /** Minimum jaw opening angle in degrees (~6°) */
   jawMinDeg: number;
-  /** Maximum jaw opening angle in degrees (~25°) */
   jawMaxDeg: number;
-  /** Normalized distance range [near, far] mapping orb proximity to jaw opening */
   jawProximityRange: [number, number];
-  /** Predatory micro-twitch quantized rate (~12fps) */
   jitterFps: number;
-  /** Predatory head micro-twitch amplitude in degrees (±0.4°) */
   headMicroTwitchDeg: number;
-  /** Open-jaw tremor threshold (fraction of jawMax) and amplitude in pixels (1-2px at 12fps) */
   openJawShakeThreshold: number;
   openJawShakePx: number;
-  /** Breathing sway amplitude (<= 1% scale sway) and frequency in rad/s */
   breathingScaleAmp: number;
   breathingFreqRad: number;
 }
 
+const PLANE_WORLD_SIZE = 5.0;
+const HEAD_UNIT_WORLD = PLANE_WORLD_SIZE / EVA_SKELETON.canvasSizeH;
+
 export const EVA_CONFIG: EvaRigConfig = {
+  planeWorldSize: PLANE_WORLD_SIZE,
+  headUnitWorld: HEAD_UNIT_WORLD,
   springs: {
     pupil: {
       stiffness: 210,
@@ -61,11 +59,21 @@ export const EVA_CONFIG: EvaRigConfig = {
       stiffness: 135,
       damping: 13.5,
     },
+    neck: {
+      stiffness: 90,
+      damping: 12.0,
+    },
+    torso: {
+      stiffness: 70,
+      damping: 11.0,
+    },
   },
   pupilMaxSlideFraction: 0.35,
-  eyeWorldRadius: 0.19,
+  eyeWorldRadius: EVA_PROPORTIONS.head.eyeWidthH * HEAD_UNIT_WORLD * 0.70,
+  eyePlaneWorldSize: EVA_PROPORTIONS.head.eyeWidthH * HEAD_UNIT_WORLD * 2.10,
+  pupilPlaneWorldSize: EVA_PROPORTIONS.head.eyeWidthH * HEAD_UNIT_WORLD * 1.85,
   headMaxTranslateFraction: 0.025,
-  headWorldWidth: 4.2,
+  headWorldWidth: EVA_PROPORTIONS.head.widthH * HEAD_UNIT_WORLD,
   headMaxRotationDeg: 6.0,
   headMaxScaleDelta: 0.015,
   jawMinDeg: 6.0,

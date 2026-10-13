@@ -1,10 +1,10 @@
-import { drawEvaStageBackground } from './background';
-import { drawEvaBodyLayer } from './body';
-import { drawEvaDripsLayer } from './drips';
-import { drawEvaEyeLayer, drawEvaPupilLayer } from './eye';
-import { createEvaDrawOrderRecorder } from './evaSurface';
-import { drawEvaHeadLayer } from './head';
-import { drawEvaJawLayer } from './jaw';
+import { drawEvaStageBackground } from './background.ts';
+import { drawEvaNeckLayer, drawEvaTorsoLayer } from './body.ts';
+import { drawEvaDripsLayer } from './drips.ts';
+import { drawEvaEyeLayer, drawEvaPupilLayer } from './eye.ts';
+import { createEvaDrawOrderRecorder } from './evaSurface.ts';
+import { drawEvaHeadLayer } from './head.ts';
+import { drawEvaJawLayer } from './jaw.ts';
 
 export interface EvaWorkerRequest {
   id: number;
@@ -16,8 +16,10 @@ export interface EvaWorkerResponse {
   id: number;
   backgroundBitmap: ImageBitmap;
   backgroundOrderBitmap: ImageBitmap;
-  bodyBitmap: ImageBitmap;
-  bodyOrderBitmap: ImageBitmap;
+  torsoBitmap: ImageBitmap;
+  torsoOrderBitmap: ImageBitmap;
+  neckBitmap: ImageBitmap;
+  neckOrderBitmap: ImageBitmap;
   headBitmap: ImageBitmap;
   headOrderBitmap: ImageBitmap;
   jawBitmap: ImageBitmap;
@@ -63,20 +65,24 @@ const workerScope = self as unknown as {
 
 workerScope.onmessage = (ev: MessageEvent<EvaWorkerRequest>) => {
   const { id, eyeGlint, isMobile } = ev.data;
-  const mainSize = isMobile ? 768 : 1024;
+  const bgSize = isMobile ? 768 : 1024;
+  const primarySize = isMobile ? 512 : 768;
   const dripsSize = 512;
   const eyeSize = 256;
 
-  const bg = renderLayerWithOrder(mainSize, (ctx, c, rec) =>
+  const bg = renderLayerWithOrder(bgSize, (ctx, c, rec) =>
     drawEvaStageBackground(ctx, c, rec, 701)
   );
-  const body = renderLayerWithOrder(mainSize, (ctx, c, rec) =>
-    drawEvaBodyLayer(ctx, c, rec, 709)
+  const torso = renderLayerWithOrder(primarySize, (ctx, c, rec) =>
+    drawEvaTorsoLayer(ctx, c, rec, 709)
   );
-  const head = renderLayerWithOrder(mainSize, (ctx, c, rec) =>
+  const neck = renderLayerWithOrder(primarySize, (ctx, c, rec) =>
+    drawEvaNeckLayer(ctx, c, rec, 707)
+  );
+  const head = renderLayerWithOrder(primarySize, (ctx, c, rec) =>
     drawEvaHeadLayer(ctx, c, rec, 719)
   );
-  const jaw = renderLayerWithOrder(mainSize, (ctx, c, rec) =>
+  const jaw = renderLayerWithOrder(primarySize, (ctx, c, rec) =>
     drawEvaJawLayer(ctx, c, rec, 727)
   );
   const eyeBitmap = renderSimpleLayer(eyeSize, (ctx, c) =>
@@ -93,8 +99,10 @@ workerScope.onmessage = (ev: MessageEvent<EvaWorkerRequest>) => {
     id,
     backgroundBitmap: bg.bitmap,
     backgroundOrderBitmap: bg.orderBitmap,
-    bodyBitmap: body.bitmap,
-    bodyOrderBitmap: body.orderBitmap,
+    torsoBitmap: torso.bitmap,
+    torsoOrderBitmap: torso.orderBitmap,
+    neckBitmap: neck.bitmap,
+    neckOrderBitmap: neck.orderBitmap,
     headBitmap: head.bitmap,
     headOrderBitmap: head.orderBitmap,
     jawBitmap: jaw.bitmap,
@@ -107,8 +115,10 @@ workerScope.onmessage = (ev: MessageEvent<EvaWorkerRequest>) => {
   workerScope.postMessage(response, [
     bg.bitmap,
     bg.orderBitmap,
-    body.bitmap,
-    body.orderBitmap,
+    torso.bitmap,
+    torso.orderBitmap,
+    neck.bitmap,
+    neck.orderBitmap,
     head.bitmap,
     head.orderBitmap,
     jaw.bitmap,

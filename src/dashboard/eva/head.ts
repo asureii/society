@@ -1,32 +1,29 @@
-import { THEME_COLORS } from '../../config/theme';
+import { THEME_COLORS } from '../../config/theme.ts';
 import {
   drawInkDot,
   drawInkStroke,
   fillRoughenedPolygon,
   type Canvas2DContext,
   type Point2D,
-} from '../../scene/art/inkBrush';
-import { createRng } from '../../scene/art/rng';
+} from '../../scene/art/inkBrush.ts';
+import { createRng } from '../../scene/art/rng.ts';
 import {
   carveCrossContourEdgeHatch,
   carveNegativeSeam,
   fillInkSilhouetteWithFringe,
   type AnyCanvas,
   type EvaDrawOrderRecorder,
-} from './evaSurface';
+} from './evaSurface.ts';
+import { EVA_PROPORTIONS } from './proportions.ts';
+import { EVA_SKELETON, hToPx, polyHToPx, type PointH } from './skeleton.ts';
 
 /**
- * Draws the Eva-01 `head` layer (1024x1024 transparent canvas, pivot at neck base `(355, 385)`):
- * Faithfully matches the reference Eva-01 Berserk silhouette & helmet proportions:
- * - Hyper-elongated, needle-sharp horn erupting from the front of the brow (`(545..594, 242)`)
- *   and shooting forward-up past the snout to `(754, 24)`, with the small step-barb at `(542, 206)`
- *   and the long vertical ink drip hanging straight down in front of the snout (`x = 678, y = 108..236`).
- * - Parallel foreground armored horn (`(456, 258) -> (552, 128)`) etched with crisp white negative-space seams.
- * - Sleek, low cranial dome sweeping back to the occipital overhang (`(252, 294)`) and solid black throat column
- *   (`x = 328..515, y = 335..465`) so there is zero white gap behind the jaw hinge!
- * - Short, brutal upper snout (`(638, 276) -> (626, 338)`) directly beneath the horn base, with gnarled
- *   downward fangs (`x = 538..624`) and a viscous flared vertical black saliva/ink column (`x = 576`).
- * Draw-order range: `0.38 .. 0.66` (horn & cranium), `0.82 .. 0.92` (upper fangs & mouth strand)
+ * Draws Eva-01 `head` layer matching official bust reference artwork:
+ * - Forward-up 50° straight razor horn to top-right with beveled tip
+ * - Sleek helmet crown + 3 tiers of swept-back rear occipital cowl fins
+ * - Sloped brow visor ridge, cylindrical horizontal cheek intake pod, hexagonal cheek seams
+ * - Short predatory upper snout with jagged downward upper teeth
+ * - Solid black mouth interior cavity so teeth read boldly
  */
 export function drawEvaHeadLayer(
   ctx: Canvas2DContext,
@@ -37,174 +34,210 @@ export function drawEvaHeadLayer(
   const W = canvas.width;
   const H = canvas.height;
   const rng = createRng(seed);
+  const sk = EVA_SKELETON;
   const s = W / 1024;
 
   ctx.clearRect(0, 0, W, H);
 
-  // 1. Single Iconic Hyper-Elongated Berserk Razor Horn at the front brow -> (754, 24)
-  const berserkHornPoly: Point2D[] = [
-    [504 * s, 242 * s],
-    [538 * s, 208 * s],
-    // Signature small rear step-barb near base of horn
-    [526 * s, 198 * s],
-    [626 * s, 114 * s],
-    [714 * s, 46 * s],
-    [754 * s, 24 * s],
-    [732 * s, 56 * s],
-    [666 * s, 134 * s],
-    [592 * s, 248 * s],
-  ];
-  fillInkSilhouetteWithFringe(ctx, berserkHornPoly, rng, 2.4 * s, 4.2 * s);
+  const { joints } = sk;
+  const { hornBase, hornTip, occipitalFinTop, occipitalFinMid, occipitalFinBot, snoutTip } =
+    joints;
 
-  // Subtle white negative-space armor edge along the lower-rear base of the horn
+  // 1. Straight Razor Horn pointing forward-up at 55° to top-right
+  const hdx = hornTip[0] - hornBase[0];
+  const hdy = hornTip[1] - hornBase[1];
+  const hLen = Math.hypot(hdx, hdy) || 1;
+  const hnx = -hdy / hLen;
+  const hny = hdx / hLen;
+  const halfBase = EVA_PROPORTIONS.horn.baseWidthH * 0.5;
+
+  const hornPolyH: PointH[] = [
+    [hornBase[0] - hnx * halfBase * 0.85, hornBase[1] - hny * halfBase * 0.85],
+    [hornBase[0] + hnx * halfBase * 0.85, hornBase[1] + hny * halfBase * 0.85],
+    // Straight taper up to beveled tip
+    [hornTip[0] + hnx * (halfBase * 0.28), hornTip[1] + hny * (halfBase * 0.28)],
+    [hornTip[0] + 0.04, hornTip[1] - 0.02],
+    [hornTip[0] - hnx * (halfBase * 0.24), hornTip[1] - hny * (halfBase * 0.24)],
+  ];
+
+  fillInkSilhouetteWithFringe(ctx, polyHToPx(hornPolyH, W, sk), rng, 2.0 * s, 3.8 * s);
+
+  // Beveled horn segment seam (the green band in reference, placed at lower quarter)
+  const bandDist = 0.22;
+  const bandX = hornBase[0] + hdx * bandDist;
+  const bandY = hornBase[1] + hdy * bandDist;
   carveNegativeSeam(
     ctx,
-    [
-      [514 * s, 236 * s],
-      [564 * s, 186 * s],
-      [618 * s, 136 * s],
-    ],
+    polyHToPx(
+      [
+        [bandX - hnx * (halfBase * 0.75), bandY - hny * (halfBase * 0.75)],
+        [bandX + hnx * (halfBase * 0.75), bandY + hny * (halfBase * 0.75)],
+      ],
+      W,
+      sk
+    ),
     rng,
-    { baseWidth: 2.0 * s, wobbleScale: 0.45 }
+    { baseWidth: 2.6 * s, wobbleScale: 0.25 }
   );
 
-  // Iconic long vertical ink drip hanging straight down from the horn underside in front of the snout
-  drawInkStroke(
-    ctx,
-    [
-      [678 * s, 108 * s],
-      [678 * s, 174 * s],
-      [677 * s, 236 * s],
-    ],
-    rng,
-    { baseWidth: 2.8 * s, color: THEME_COLORS.ink, taperScale: 1.4, wobbleScale: 0.35 }
-  );
-  drawInkDot(ctx, 677 * s, 244 * s, 2.2 * s, rng, THEME_COLORS.ink);
-
-  recorder.captureStage(canvas, 0.38, 0.48, 'top-down');
-
-  // 2. Sleek, Low Cranial Dome, Short Snub Snout & Solid Black Throat Column (zero gap behind jaw!)
-  const craniumSnoutThroatPoly: Point2D[] = [
-    // Swept-back rear occipital fin tip
-    [252 * s, 294 * s],
-    [282 * s, 266 * s],
-    [348 * s, 236 * s],
-    [436 * s, 224 * s],
-    [522 * s, 234 * s],
-    // Front brow directly under the horn base -> short, brutal upper snout
-    [592 * s, 246 * s],
-    [622 * s, 262 * s],
-    [642 * s, 282 * s],
-    [636 * s, 314 * s],
-    [626 * s, 342 * s],
-    // Upper maxilla receding to deep solid throat column at x = 508
-    [578 * s, 346 * s],
-    [526 * s, 348 * s],
-    [506 * s, 376 * s],
-    [508 * s, 438 * s],
-    [486 * s, 478 * s],
-    // Solid throat base overlapping neck & jaw hinge (eliminates any white gap!)
-    [332 * s, 474 * s],
-    [314 * s, 404 * s],
-    // Swept-back lateral helmet cheek/ear wing
-    [214 * s, 386 * s],
-    [258 * s, 362 * s],
-    [308 * s, 348 * s],
-    // Stepped rear occipital notch
-    [264 * s, 322 * s],
-    [286 * s, 308 * s],
-  ];
-  fillInkSilhouetteWithFringe(ctx, craniumSnoutThroatPoly, rng, 3.4 * s, 5.2 * s);
-
-  // Swept-back lateral helmet cheek/ear wing fin (kept below the eye socket so the glowing white eye sits in pure black ink!)
+  // Horn base mounting collar seam
   carveNegativeSeam(
     ctx,
-    [
-      [226 * s, 382 * s],
-      [326 * s, 368 * s],
-      [432 * s, 362 * s],
-    ],
+    polyHToPx(
+      [
+        [hornBase[0] - hnx * halfBase * 0.80, hornBase[1] - hny * halfBase * 0.80],
+        [hornBase[0] + hnx * halfBase * 0.80, hornBase[1] + hny * halfBase * 0.80],
+      ],
+      W,
+      sk
+    ),
     rng,
-    { baseWidth: 2.8 * s, wobbleScale: 0.55 }
+    { baseWidth: 2.4 * s, wobbleScale: 0.3 }
   );
 
-  // Cross-contour hatching along the upper cranium dome
+  recorder.captureStage(canvas, 0.42, 0.52, 'top-down');
+
+  // 2. Helmet Silhouette matching reference:
+  // Low crown + 3 multi-tiered swept-back rear cowl fins + brow visor ridge + snout
+  const helmetPolyH: PointH[] = [
+    // Top-most swept-back occipital fin
+    [occipitalFinTop[0], occipitalFinTop[1]],
+    [occipitalFinTop[0] + 0.28, occipitalFinTop[1] - 0.05],
+    [joints.headTop[0], joints.headTop[1]],
+    // Sloped crown down to brow ridge and horn base
+    [hornBase[0] - 0.06, hornBase[1] + 0.02],
+    [joints.browRidge[0], joints.browRidge[1]],
+    [joints.browRidge[0] + 0.12, joints.browRidge[1] + 0.08],
+    // Sharp predatory upper snout
+    [snoutTip[0], snoutTip[1]],
+    [snoutTip[0] - 0.04, snoutTip[1] + 0.08],
+    // Mouth roof / solid black maw interior
+    [joints.headCenter[0] + 0.18, snoutTip[1] + 0.10],
+    [joints.jawHinge[0] + 0.08, joints.jawHinge[1]],
+    [joints.neckTop[0] + 0.06, joints.neckTop[1]],
+    // Lower swept-back occipital cowl fin
+    [occipitalFinBot[0], occipitalFinBot[1]],
+    [occipitalFinBot[0] + 0.20, occipitalFinBot[1] - 0.04],
+    // Mid swept-back occipital cowl fin
+    [occipitalFinMid[0], occipitalFinMid[1]],
+    [occipitalFinMid[0] + 0.24, occipitalFinMid[1] - 0.05],
+    // Notch between mid and top fin
+    [occipitalFinTop[0] + 0.14, occipitalFinTop[1] + 0.06],
+  ];
+
+  fillInkSilhouetteWithFringe(ctx, polyHToPx(helmetPolyH, W, sk), rng, 2.2 * s, 4.0 * s);
+
+  // 3. Multi-Tiered Swept Occipital Fin Seams (white negative space)
+  carveNegativeSeam(
+    ctx,
+    polyHToPx(
+      [
+        [occipitalFinTop[0] + 0.08, occipitalFinTop[1] + 0.02],
+        [occipitalFinTop[0] + 0.38, occipitalFinTop[1] + 0.02],
+        [joints.headTop[0] + 0.04, joints.headTop[1] + 0.16],
+      ],
+      W,
+      sk
+    ),
+    rng,
+    { baseWidth: 2.2 * s, wobbleScale: 0.4 }
+  );
+
+  carveNegativeSeam(
+    ctx,
+    polyHToPx(
+      [
+        [occipitalFinMid[0] + 0.06, occipitalFinMid[1] + 0.02],
+        [occipitalFinMid[0] + 0.36, occipitalFinMid[1] + 0.04],
+        [joints.headCenter[0] - 0.12, joints.headCenter[1] + 0.02],
+      ],
+      W,
+      sk
+    ),
+    rng,
+    { baseWidth: 2.2 * s, wobbleScale: 0.4 }
+  );
+
+  // 4. Cylindrical Horizontal Cheek Intake Pod (the green/red ear cylinder in reference)
+  const pod = joints.cheekPod;
+  const podPolyH: PointH[] = [
+    [pod[0] - 0.16, pod[1] - 0.04],
+    [pod[0] + 0.16, pod[1] - 0.04],
+    [pod[0] + 0.18, pod[1]],
+    [pod[0] + 0.16, pod[1] + 0.04],
+    [pod[0] - 0.16, pod[1] + 0.04],
+    [pod[0] - 0.18, pod[1]],
+  ];
+  const podPx = polyHToPx(podPolyH, W, sk);
+  drawInkStroke(ctx, [...podPx, podPx[0]], rng, {
+    baseWidth: 2.2 * s,
+    color: THEME_COLORS.paper,
+    wobbleScale: 0.35,
+  });
+
+  // Circular inner intake ports on cheek
+  const port1Px = hToPx([pod[0] - 0.08, pod[1] - 0.12], W, sk);
+  const port2Px = hToPx([pod[0] - 0.02, pod[1] - 0.10], W, sk);
+  drawInkDot(ctx, port1Px[0], port1Px[1], 4.2 * s, rng, THEME_COLORS.paper);
+  drawInkDot(ctx, port2Px[0], port2Px[1], 3.8 * s, rng, THEME_COLORS.paper);
+
+  // 5. Hexagonal Cheek Plates below the pod (white negative space seams)
+  const hexLinesH: PointH[][] = [
+    [
+      [pod[0] + 0.04, pod[1] + 0.06],
+      [pod[0] + 0.12, pod[1] + 0.10],
+      [pod[0] + 0.22, pod[1] + 0.08],
+    ],
+    [
+      [pod[0] + 0.12, pod[1] + 0.10],
+      [pod[0] + 0.10, pod[1] + 0.18],
+      [pod[0] + 0.18, pod[1] + 0.22],
+    ],
+  ];
+  for (const hl of hexLinesH) {
+    carveNegativeSeam(ctx, polyHToPx(hl, W, sk), rng, {
+      baseWidth: 1.8 * s,
+      wobbleScale: 0.3,
+    });
+  }
+
+  // Cross-contour hatching on rear occipital cowl
   carveCrossContourEdgeHatch(
     ctx,
-    [315 * s, 242 * s],
-    [515 * s, 234 * s],
-    [0.08, 0.98],
-    10,
-    12 * s,
+    hToPx([occipitalFinTop[0] + 0.12, occipitalFinTop[1] + 0.02], W, sk),
+    hToPx([joints.headTop[0], joints.headTop[1] + 0.02], W, sk),
+    [0.1, 0.98],
+    6,
+    8.0 * s,
     rng
   );
 
-  recorder.captureStage(canvas, 0.48, 0.66, 'left-right');
+  recorder.captureStage(canvas, 0.52, 0.68, 'left-right');
 
-  // 4. Gnarled Downward Upper Fangs & Flared Viscous Vertical Saliva/Ink Column
-  // Recorded in [0.82, 0.92] so fangs & jaw appear last before the eye flash!
-  const upperFangPolys: Point2D[][] = [
-    // Rear molar projection
-    [
-      [528 * s, 344 * s],
-      [548 * s, 344 * s],
-      [538 * s, 368 * s],
-    ],
-    // Mid fang (connected to the vertical saliva strand)
-    [
-      [554 * s, 342 * s],
-      [584 * s, 342 * s],
-      [576 * s, 382 * s],
-      [564 * s, 372 * s],
-    ],
-    // Front canine fang
-    [
-      [588 * s, 340 * s],
-      [612 * s, 338 * s],
-      [602 * s, 376 * s],
-    ],
-    // Snout tip incisor barb
-    [
-      [612 * s, 338 * s],
-      [626 * s, 336 * s],
-      [622 * s, 364 * s],
-    ],
-  ];
+  // 6. Upper Jagged Teeth along upper jaw rim
+  const toothStartX = joints.headCenter[0] + 0.22;
+  const toothEndX = snoutTip[0] - 0.02;
+  const toothY = snoutTip[1] + 0.08;
+  const numTeeth = EVA_PROPORTIONS.head.upperTeethCount;
+  const slotW = (toothEndX - toothStartX) / numTeeth;
 
-  for (const poly of upperFangPolys) {
-    fillRoughenedPolygon(ctx, poly, rng, THEME_COLORS.ink, 1.4 * s);
+  for (let i = 0; i < numTeeth; i++) {
+    const tx0 = toothStartX + i * slotW + slotW * 0.08;
+    const tx1 = toothStartX + (i + 1) * slotW - slotW * 0.08;
+    const tMidX = (tx0 + tx1) * 0.5;
+    const toothLenH = i === 1 || i === 4 ? 0.095 : 0.080;
+
+    const toothPolyPx: Point2D[] = polyHToPx(
+      [
+        [tx0, toothY],
+        [tx1, toothY],
+        [tMidX, toothY + toothLenH],
+      ],
+      W,
+      sk
+    );
+    fillRoughenedPolygon(ctx, toothPolyPx, rng, THEME_COLORS.paperPure, 0.7 * s);
   }
 
-  // Subtle white upper tooth enamel edge on the foreground jaw
-  carveNegativeSeam(
-    ctx,
-    [
-      [522 * s, 342 * s],
-      [574 * s, 340 * s],
-      [618 * s, 336 * s],
-    ],
-    rng,
-    { baseWidth: 2.4 * s }
-  );
-
-  // Iconic Viscous Vertical Saliva/Ink Column bridging the open maw at x = 576 (flared web at top & bottom)
-  const salivaWebTop: Point2D[] = [
-    [564 * s, 362 * s],
-    [586 * s, 362 * s],
-    [578 * s, 398 * s],
-    [573 * s, 398 * s],
-  ];
-  fillRoughenedPolygon(ctx, salivaWebTop, rng, THEME_COLORS.ink, 1.0 * s);
-  drawInkStroke(
-    ctx,
-    [
-      [576 * s, 364 * s],
-      [575 * s, 424 * s],
-      [576 * s, 488 * s],
-    ],
-    rng,
-    { baseWidth: 3.6 * s, color: THEME_COLORS.ink, wobbleScale: 0.4, taperScale: 1.05 }
-  );
-
-  recorder.captureStage(canvas, 0.82, 0.92, 'left-right');
+  recorder.captureStage(canvas, 0.82, 0.90, 'left-right');
 }

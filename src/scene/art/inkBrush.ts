@@ -13,9 +13,9 @@
  * 8. Edge roughening: polygon contour vertices are displaced before fill so no edge is vector-clean.
  */
 
-import { INK_CONFIG } from '../../config/ink';
-import { THEME_COLORS } from '../../config/theme';
-import type { PRNG } from './rng';
+import { INK_CONFIG } from '../../config/ink.ts';
+import { THEME_COLORS } from '../../config/theme.ts';
+import type { PRNG } from './rng.ts';
 
 export type Point2D = [number, number];
 

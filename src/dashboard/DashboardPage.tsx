@@ -11,6 +11,7 @@ import {
 } from './stageInput';
 import { resolveWidgetForSlot, useWidgetRegistryVersion } from './widgets/registry';
 import { EmptySlotPlaceholder, WidgetFrame } from './widgets/WidgetFrame';
+import { EvaDebugOverlay } from './EvaDebugOverlay';
 
 const SlotRenderer: React.FC<{ slotId: DashboardWidgetSlotId }> = ({ slotId }) => {
   const widget = resolveWidgetForSlot(slotId);
@@ -99,6 +100,8 @@ export const DashboardPage: React.FC = () => {
         onKeyDown={handleStageKeyDown}
         className="relative w-full h-[58dvh] md:fixed md:inset-0 md:h-full z-10 cursor-crosshair focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-[var(--red)]"
       />
+
+      <EvaDebugOverlay />
 
       {!isMobile ? (
         <>
