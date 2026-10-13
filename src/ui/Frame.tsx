@@ -4,6 +4,7 @@ import { computeIntroFrameTelemetry } from '../lib/introTimeline';
 import { CHAPTERS, useAppStore } from '../store/useAppStore';
 
 export const Frame: React.FC = () => {
+  const activeRoute = useAppStore((s) => s.activeRoute);
   const hasScrolled = useAppStore((s) => s.hasScrolled);
   const activeChapter = useAppStore((s) => s.activeChapter);
   const onBlack = useAppStore((s) => s.onBlack);
@@ -14,16 +15,24 @@ export const Frame: React.FC = () => {
   const reducedMotion = useAppStore((s) => s.reducedMotion);
   const debugScrubber = useAppStore((s) => s.debugScrubber);
 
+  const isOnDashboard = activeRoute === '/dashboard';
   const isScrubbingIntro = debugScrubber.enabled && debugScrubber.mode === 'intro';
   const hudOpacity =
-    introState === 'done' && !isScrubbingIntro
+    isOnDashboard || (introState === 'done' && !isScrubbingIntro)
       ? 1
       : computeIntroFrameTelemetry(introElapsedSec, isSkippingIntro, skipProgress, reducedMotion)
           .hudOpacity;
 
-  const currentMeta = CHAPTERS.find((c) => c.id === activeChapter) ?? CHAPTERS[0];
+  const chapterMeta = CHAPTERS.find((c) => c.id === activeChapter) ?? CHAPTERS[0];
+  const currentMeta = isOnDashboard
+    ? {
+        number: '08',
+        title: 'DASHBOARD',
+        jpSubtitle: '零捌 // 監視盤',
+      }
+    : chapterMeta;
 
-  // Show Chapter Tab and Vertical Japanese Tablet only for ~1.5s as a chapter starts, then slide out of view
+  // Show Chapter Tab and Vertical Japanese Tablet only for ~1.5s as a chapter/route starts, then slide out of view
   const [showChapterStamp, setShowChapterStamp] = useState(true);
 
   useEffect(() => {
@@ -32,7 +41,7 @@ export const Frame: React.FC = () => {
       setShowChapterStamp(false);
     }, 1500);
     return () => clearTimeout(timer);
-  }, [activeChapter]);
+  }, [activeChapter, activeRoute]);
 
   return (
     <div
@@ -95,8 +104,9 @@ export const Frame: React.FC = () => {
         }`}
       />
 
-      {/* Chapter Tab along the left edge: slides in for 1.5s when chapter changes, then slides out to the left */}
+      {/* Chapter Tab along the left edge: slides in for 1.5s when chapter/route changes, then slides out to the left */}
       <div
+        data-chapter-tab={currentMeta.title}
         className={`hidden md:flex absolute left-3 top-1/2 -translate-y-1/2 flex-col items-center gap-2 border-2 px-1.5 py-2.5 transition-all duration-300 ease-in-out ${
           onBlack
             ? 'bg-ink border-paper-pure text-paper-pure'
@@ -131,10 +141,10 @@ export const Frame: React.FC = () => {
         </span>
       </div>
 
-      {/* Animated "SCROLL" cue that slides out after the first movement */}
+      {/* Animated "SCROLL" cue that slides out after the first movement or on /dashboard */}
       <div
         className={`hidden sm:block absolute bottom-5 left-1/2 -translate-x-1/2 transition-transform duration-300 ease-in-out ${
-          hasScrolled || onBlack ? 'translate-y-[200%]' : 'translate-y-0'
+          isOnDashboard || hasScrolled || onBlack ? 'translate-y-[200%]' : 'translate-y-0'
         }`}
       >
         <div className="flex items-center gap-2.5 bg-paper-pure border-2 border-ink px-3 py-1.5 shadow-[3px_3px_0px_var(--ink)]">

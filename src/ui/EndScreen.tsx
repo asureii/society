@@ -11,16 +11,20 @@
  */
 
 import React, { useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { PROFILE } from '../config/profile';
+import { prefetchDashboardRoute } from '../dashboard/prefetchDashboard';
 import { clamp } from '../lib/math';
 import { useAppStore } from '../store/useAppStore';
 
 export const EndScreen: React.FC = () => {
+  const activeRoute = useAppStore((s) => s.activeRoute);
   const endP = useAppStore((s) => s.endP);
   const isRewinding = useAppStore((s) => s.isRewinding);
   const reducedMotion = useAppStore((s) => s.reducedMotion);
   const triggerRewind = useAppStore((s) => s.triggerRewind);
   const triggerReplayIntro = useAppStore((s) => s.triggerReplayIntro);
+  const triggerRouteTransition = useAppStore((s) => s.triggerRouteTransition);
   const scrollToTarget = useAppStore((s) => s.scrollToTarget);
   const lastInputWasKeyboard = useAppStore((s) => s.lastInputWasKeyboard);
 
@@ -28,7 +32,7 @@ export const EndScreen: React.FC = () => {
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const wasActiveRef = useRef<boolean>(false);
 
-  const isVisible = endP >= 0.92 && !isRewinding;
+  const isVisible = activeRoute === '/' && endP >= 0.92 && !isRewinding;
   const textOpacity = isVisible
     ? reducedMotion
       ? 1
@@ -68,6 +72,16 @@ export const EndScreen: React.FC = () => {
   const handleReplayIntroClick = () => {
     if (triggerReplayIntro) {
       triggerReplayIntro();
+    }
+  };
+
+  const handleDashboardClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
+      return;
+    }
+    if (triggerRouteTransition) {
+      e.preventDefault();
+      triggerRouteTransition('/dashboard', [0.5, 0.34]);
     }
   };
 
@@ -129,7 +143,7 @@ export const EndScreen: React.FC = () => {
         {/* Thin signal-red rule beneath subline */}
         <div className="w-16 h-[2px] bg-red my-5" aria-hidden="true" />
 
-        {/* Boxed REWIND TO START & REPLAY INTRO buttons (thumb-sized min-h-[44px]) */}
+        {/* Boxed REWIND TO START, REPLAY INTRO & DASHBOARD buttons (thumb-sized min-h-[44px]) */}
         <div className="flex flex-wrap items-center justify-center gap-3">
           <button
             ref={buttonRef}
@@ -152,6 +166,18 @@ export const EndScreen: React.FC = () => {
           >
             {PROFILE.endCard.replayCta}
           </button>
+
+          <Link
+            to="/dashboard"
+            id="end-screen-dashboard-link"
+            tabIndex={isVisible ? 0 : -1}
+            onMouseEnter={() => void prefetchDashboardRoute()}
+            onFocus={() => void prefetchDashboardRoute()}
+            onClick={handleDashboardClick}
+            className="bg-ink text-paper-pure border-2 border-paper-pure hover:bg-red hover:border-red focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red font-display text-xs sm:text-sm tracking-[0.18em] uppercase px-5 py-2.5 min-h-[44px] inline-flex items-center transition-colors"
+          >
+            DASHBOARD
+          </Link>
         </div>
       </div>
     </section>

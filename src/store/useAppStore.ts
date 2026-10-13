@@ -11,8 +11,23 @@ import {
 } from '../config/scenes.config';
 import { STAGE_CONFIG, type BeatMode } from '../config/stage';
 
+export type AppRoute = '/' | '/dashboard';
+
+export function isDashboardPath(pathname?: string): boolean {
+  const raw =
+    pathname ?? (typeof window !== 'undefined' ? window.location.pathname : '/');
+  const base =
+    typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL
+      ? import.meta.env.BASE_URL.replace(/\/+$/, '')
+      : '';
+  const stripped =
+    base && raw.startsWith(base) ? raw.slice(base.length) || '/' : raw;
+  return /^\/?dashboard\/?$/i.test(stripped);
+}
+
 /**
  * Evaluates whether the cinematic intro should play on initial page load:
+ * - Deep-linking `/dashboard` skips the intro and does NOT mark `introSeen`.
  * - `?intro=1` forces play even if `sessionStorage.introSeen` is set.
  * - `?intro=0` or `!INTRO_CONFIG.enabled` bypasses immediately to `'done'`.
  * - Otherwise plays unless `INTRO_CONFIG.showOncePerSession` and `sessionStorage.getItem('introSeen') === '1'`.
@@ -20,6 +35,9 @@ import { STAGE_CONFIG, type BeatMode } from '../config/stage';
 export function shouldPlayIntroOnBoot(): boolean {
   if (!INTRO_CONFIG.enabled) return false;
   if (typeof window === 'undefined') return true;
+  if (isDashboardPath(window.location.pathname)) {
+    return false;
+  }
   try {
     const params = new URLSearchParams(window.location.search);
     const introParam = params.get('intro');
@@ -124,6 +142,19 @@ export const CHAPTERS: ChapterMeta[] = [
 
 export type DiscordStatusType = 'online' | 'idle' | 'dnd' | 'offline';
 
+export interface DiscordActivityAssets {
+  large_image?: string;
+  large_text?: string;
+  small_image?: string;
+  small_text?: string;
+}
+
+export interface DiscordActivityEmoji {
+  name: string;
+  id?: string;
+  animated?: boolean;
+}
+
 export interface DiscordActivity {
   name: string;
   type: number;
@@ -134,6 +165,8 @@ export interface DiscordActivity {
     end?: number;
   };
   application_id?: string;
+  assets?: DiscordActivityAssets;
+  emoji?: DiscordActivityEmoji;
 }
 
 export interface SpotifyData {
@@ -148,18 +181,35 @@ export interface SpotifyData {
   album: string;
 }
 
+export interface DiscordPlatforms {
+  desktop: boolean;
+  mobile: boolean;
+  web: boolean;
+}
+
 export interface DiscordPresenceState {
   status: DiscordStatusType;
   username: string;
   displayName: string;
   avatarUrl: string | null;
   customStatus: string | null;
+  customStatusEmoji: DiscordActivityEmoji | null;
   activities: DiscordActivity[];
   listeningToSpotify: boolean;
   spotify: SpotifyData | null;
+  platforms: DiscordPlatforms;
   connected: boolean;
   usingFallback: boolean;
+  unreachable: boolean;
   lastUpdated: number;
+}
+
+export interface RouteTransitionState {
+  active: boolean;
+  direction: 'to-dashboard' | 'to-home';
+  progress: number;
+  originUv: [number, number];
+  targetUv: [number, number];
 }
 
 export interface ChapterProgressMetrics {
@@ -320,6 +370,24 @@ interface AppState {
   // Programmatic scroll request callback registered by useLenis
   scrollToTarget: ((target: string | number) => void) | null;
   setScrollToTarget: (fn: ((target: string | number) => void) | null) => void;
+
+  // Route & Dashboard State
+  activeRoute: AppRoute;
+  setActiveRoute: (route: AppRoute) => void;
+  dashboardReady: boolean;
+  setDashboardReady: (ready: boolean) => void;
+  dashboardRevealP: number;
+  setDashboardRevealP: (p: number) => void;
+  dashboardOrbUv: [number, number];
+  setDashboardOrbUv: (uv: [number, number]) => void;
+  routeTransition: RouteTransitionState;
+  setRouteTransition: (update: Partial<RouteTransitionState>) => void;
+  triggerRouteTransition:
+    | ((to: AppRoute, clickOriginUv?: [number, number]) => void)
+    | null;
+  setTriggerRouteTransition: (
+    fn: ((to: AppRoute, clickOriginUv?: [number, number]) => void) | null,
+  ) => void;
 }
 
 const initialChapterState: ChapterState = {
@@ -335,6 +403,11 @@ const initialChapterState: ChapterState = {
   displaySceneIndex: 0,
   transitionType: SCENES_CONFIG[0].transitionOut,
 };
+
+const initialRoute: AppRoute =
+  typeof window !== 'undefined' && isDashboardPath(window.location.pathname)
+    ? '/dashboard'
+    : '/';
 
 const initialPlayIntro = shouldPlayIntroOnBoot();
 
@@ -450,7 +523,9 @@ export const useAppStore = create<AppState>((set) => ({
 
       const nextEndP = u.endP ?? 0;
       const nextOnBlack =
-        u.onBlack ?? (nextEndP > 0.6 || (state.isRewinding && state.rewindRevealP < 0.45));
+        state.activeRoute === '/dashboard'
+          ? false
+          : (u.onBlack ?? (nextEndP > 0.6 || (state.isRewinding && state.rewindRevealP < 0.45)));
 
       return {
         rawScrollProgress: u.rawScrollProgress ?? u.scrollProgress,
@@ -486,7 +561,10 @@ export const useAppStore = create<AppState>((set) => ({
       return {
         isRewinding: nextIsRewinding,
         rewindRevealP: nextRewindRevealP,
-        onBlack: state.endP > 0.6 || (nextIsRewinding && nextRewindRevealP < 0.45),
+        onBlack:
+          state.activeRoute === '/dashboard'
+            ? false
+            : state.endP > 0.6 || (nextIsRewinding && nextRewindRevealP < 0.45),
       };
     }),
   triggerRewind: null,
@@ -532,11 +610,18 @@ export const useAppStore = create<AppState>((set) => ({
     displayName: 'Jonathan Erick Christovandy',
     avatarUrl: null,
     customStatus: null,
+    customStatusEmoji: null,
     activities: [],
     listeningToSpotify: false,
     spotify: null,
+    platforms: {
+      desktop: false,
+      mobile: false,
+      web: false,
+    },
     connected: false,
     usingFallback: true,
+    unreachable: false,
     lastUpdated: Date.now(),
   },
   setDiscordPresence: (presence) =>
@@ -550,4 +635,33 @@ export const useAppStore = create<AppState>((set) => ({
 
   scrollToTarget: null,
   setScrollToTarget: (scrollToTarget) => set({ scrollToTarget }),
+
+  activeRoute: initialRoute,
+  setActiveRoute: (activeRoute) =>
+    set((state) => ({
+      activeRoute,
+      onBlack: activeRoute === '/dashboard' ? false : state.endP > 0.6,
+    })),
+  dashboardReady: false,
+  setDashboardReady: (dashboardReady) => set({ dashboardReady }),
+  dashboardRevealP: 0,
+  setDashboardRevealP: (dashboardRevealP) => set({ dashboardRevealP }),
+  dashboardOrbUv: [0.64, 0.42],
+  setDashboardOrbUv: (dashboardOrbUv) => set({ dashboardOrbUv }),
+  routeTransition: {
+    active: false,
+    direction: 'to-dashboard',
+    progress: 0,
+    originUv: [0.46, 0.63],
+    targetUv: [0.64, 0.58],
+  },
+  setRouteTransition: (update) =>
+    set((state) => ({
+      routeTransition: {
+        ...state.routeTransition,
+        ...update,
+      },
+    })),
+  triggerRouteTransition: null,
+  setTriggerRouteTransition: (triggerRouteTransition) => set({ triggerRouteTransition }),
 }));

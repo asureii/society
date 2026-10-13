@@ -116,6 +116,12 @@ export function applySceneCameraPose(
   };
 }
 
+export function applyDashboardCameraPose(camera: THREE.PerspectiveCamera): void {
+  camera.position.set(0, 0, 6.0);
+  camera.lookAt(0, 0, 0);
+  camera.rotation.z = 0;
+}
+
 export const CameraRig: React.FC = () => {
   const { camera } = useThree();
   const prevTimeRef = useRef<number>(0);
@@ -124,6 +130,16 @@ export const CameraRig: React.FC = () => {
   useFrame(({ clock, size }) => {
     const state = useAppStore.getState();
     const elapsed = clock.getElapsedTime();
+    const rt = state.routeTransition;
+
+    const mainShowingDashboard =
+      (state.activeRoute === '/dashboard' && !rt.active) ||
+      (rt.active && rt.direction === 'to-home');
+
+    if (mainShowingDashboard) {
+      applyDashboardCameraPose(camera as THREE.PerspectiveCamera);
+      return;
+    }
 
     const pose = applySceneCameraPose(
       camera as THREE.PerspectiveCamera,

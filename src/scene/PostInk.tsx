@@ -337,7 +337,8 @@ const postFragment = /* glsl */ `
     }
 
     // =========================================================================
-    // 3. STANDARD BOUNDARY TRANSITIONS (uWipeProgress in (0, 1))
+    // =========================================================================
+    // 3. STANDARD BOUNDARY & ROUTE TRANSITIONS (uWipeProgress in (0, 1))
     // =========================================================================
     // Strict discard guard outside transitions (preserves paper luminance >= 248/255)
     if (uWipeProgress <= 0.0005 || uWipeProgress >= 0.9995) {
@@ -349,6 +350,11 @@ const postFragment = /* glsl */ `
     vec2 anchorShift = (uOrbPosIn - uOrbPosOut) * settleEnv * 0.14;
     vec2 sampleUv = clamp(vUv + anchorShift, 0.0, 1.0);
     vec4 incomingSample = texture2D(uIncomingTex, sampleUv);
+
+    if (uReducedMotion == 1) {
+      gl_FragColor = vec4(incomingSample.rgb, clamp(uWipeProgress, 0.0, 1.0));
+      return;
+    }
 
     // Collar envelope vanishes smoothly by tau = 0.88 so the final 12% of the transition is pure incoming scene
     float env = sin(clamp(uWipeProgress / 0.88, 0.0, 1.0) * 3.14159265);
@@ -494,8 +500,16 @@ export const PostInk: React.FC<PostInkProps> = ({ incomingTexture }) => {
     const h = Math.max(1, size.height);
     const aspect = w / h;
 
-    const orbOutWebGL: [number, number] = [outScene.orb.pos[0], 1.0 - outScene.orb.pos[1]];
-    const orbInWebGL: [number, number] = [inScene.orb.pos[0], 1.0 - inScene.orb.pos[1]];
+    const rt = state.routeTransition;
+    const isRouteTrans = rt.active;
+    const isHomeActive = state.activeRoute === '/' && !isRouteTrans;
+
+    const orbOutWebGL: [number, number] = isRouteTrans
+      ? [rt.originUv[0], 1.0 - rt.originUv[1]]
+      : [outScene.orb.pos[0], 1.0 - outScene.orb.pos[1]];
+    const orbInWebGL: [number, number] = isRouteTrans
+      ? [rt.targetUv[0], 1.0 - rt.targetUv[1]]
+      : [inScene.orb.pos[0], 1.0 - inScene.orb.pos[1]];
     const s7OrbWebGL: [number, number] = [
       thresholdScene.orb.pos[0],
       1.0 - thresholdScene.orb.pos[1],
@@ -520,11 +534,11 @@ export const PostInk: React.FC<PostInkProps> = ({ incomingTexture }) => {
 
     const accentRadiusNorm = INK_CONFIG.endAccentRadiusPx / w;
 
-    const tau = cs.tau;
+    const tau = isRouteTrans ? rt.progress : isHomeActive ? cs.tau : 0;
     const finalRadius = computeTargetIrisRadius(tau, orbOutWebGL, aspect);
 
     // Compute current finale orb screen position (in CSS pixels) for verification telemetry
-    const endP = state.endP;
+    const endP = isHomeActive ? state.endP : 0;
     const morphT = Math.max(0, Math.min(1, (endP - 0.88) / 0.12));
     const morphS = morphT * morphT * (3.0 - 2.0 * morphT);
     const curOrbUvX = s7OrbWebGL[0] + (accentUvX - s7OrbWebGL[0]) * morphS;
@@ -546,10 +560,13 @@ export const PostInk: React.FC<PostInkProps> = ({ incomingTexture }) => {
     matRef.current.uniforms.uIncomingTex.value = incomingTexture ?? fallbackTex;
     matRef.current.uniforms.uWipeProgress.value = tau;
     matRef.current.uniforms.uIrisRadius.value = finalRadius;
-    matRef.current.uniforms.uTransitionType.value =
-      cs.transitionType === 'panelSlice' ? 1 : 0;
+    matRef.current.uniforms.uTransitionType.value = isRouteTrans
+      ? 0
+      : cs.transitionType === 'panelSlice'
+        ? 1
+        : 0;
 
-    if (state.isRewinding) {
+    if (isHomeActive && state.isRewinding) {
       const coverOrbWebGL: [number, number] = [
         coverScene.orb.pos[0],
         1.0 - coverScene.orb.pos[1],
@@ -576,8 +593,11 @@ export const PostInk: React.FC<PostInkProps> = ({ incomingTexture }) => {
     matRef.current.uniforms.uEdgeAmplitude.value = state.reducedMotion
       ? 0.0
       : INK_CONFIG.irisEdgeAmplitude;
-    matRef.current.uniforms.uSeed.value =
-      endP > 0.0005 ? 73.19 : cs.boundaryIndex * 19.37 + 7.13;
+    matRef.current.uniforms.uSeed.value = isRouteTrans
+      ? 41.29
+      : endP > 0.0005
+        ? 73.19
+        : cs.boundaryIndex * 19.37 + 7.13;
 
     // Finale uniforms
     matRef.current.uniforms.uEndProgress.value = endP;

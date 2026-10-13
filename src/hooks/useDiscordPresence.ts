@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { PROFILE } from '../config/profile';
 import {
   useAppStore,
@@ -7,7 +7,7 @@ import {
   type SpotifyData,
 } from '../store/useAppStore';
 
-interface LanyardDataPayload {
+export interface LanyardDataPayload {
   discord_user?: {
     id: string;
     username: string;
@@ -19,36 +19,158 @@ interface LanyardDataPayload {
   activities?: DiscordActivity[];
   listening_to_spotify?: boolean;
   spotify?: SpotifyData | null;
+  active_on_discord_desktop?: boolean;
+  active_on_discord_mobile?: boolean;
+  active_on_discord_web?: boolean;
+  /** Optional test/debug flag for simulating unreachable Lanyard state */
+  unreachable?: boolean;
 }
 
 interface LanyardSocketMessage {
   op: number;
-  d?: {
+  d?: LanyardDataPayload & {
     heartbeat_interval?: number;
-    discord_user?: LanyardDataPayload['discord_user'];
-    discord_status?: DiscordStatusType;
-    activities?: DiscordActivity[];
-    listening_to_spotify?: boolean;
-    spotify?: SpotifyData | null;
   };
   t?: 'INIT_STATE' | 'PRESENCE_UPDATE';
 }
 
-export function useDiscordPresence(): void {
-  const setDiscordPresence = useAppStore((s) => s.setDiscordPresence);
-  const retryAttemptRef = useRef<number>(0);
+// Module-level singleton state so StrictMode or route navigation never opens duplicate sockets
+let sharedWs: WebSocket | null = null;
+let sharedHeartbeatTimer: number | null = null;
+let sharedReconnectTimer: number | null = null;
+let sharedPollTimer: number | null = null;
+let subscriberCount = 0;
+let retryAttempt = 0;
+let mockOverrideActive = false;
 
+function applyPresencePayloadToStore(
+  payload: LanyardDataPayload,
+  viaSocket: boolean,
+  userId: string,
+): void {
+  const setDiscordPresence = useAppStore.getState().setDiscordPresence;
+
+  if (payload.unreachable) {
+    setDiscordPresence({
+      status: 'offline',
+      username: 'christovandy',
+      displayName: PROFILE.fullName,
+      avatarUrl: null,
+      customStatus: 'SIGNAL LOST: RETRYING',
+      customStatusEmoji: null,
+      activities: [],
+      listeningToSpotify: false,
+      spotify: null,
+      platforms: { desktop: false, mobile: false, web: false },
+      connected: false,
+      usingFallback: true,
+      unreachable: true,
+    });
+    return;
+  }
+
+  const user = payload.discord_user;
+
+  if (!user) {
+    setDiscordPresence({
+      status: payload.discord_status ?? 'offline',
+      username: 'christovandy',
+      displayName: PROFILE.fullName,
+      avatarUrl: null,
+      customStatus: 'JOIN DISCORD.GG/LANYARD TO SYNC STATUS',
+      customStatusEmoji: null,
+      activities: [
+        {
+          name: 'LANYARD // AWAITING SERVER LINK',
+          type: 0,
+          details: `Discord User ID: ${userId}`,
+          state: 'Join discord.gg/lanyard to bridge presence',
+          timestamps: { start: Date.now() },
+        },
+      ],
+      listeningToSpotify: false,
+      spotify: null,
+      platforms: {
+        desktop: Boolean(payload.active_on_discord_desktop),
+        mobile: Boolean(payload.active_on_discord_mobile),
+        web: Boolean(payload.active_on_discord_web),
+      },
+      connected: viaSocket,
+      usingFallback: true,
+      unreachable: false,
+    });
+    return;
+  }
+
+  const avatarUrl =
+    user.id && user.avatar
+      ? user.avatar.startsWith('http') || user.avatar.startsWith('data:')
+        ? user.avatar
+        : `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=256`
+      : null;
+
+  const rawActivities = payload.activities ?? [];
+  const customAct = rawActivities.find((a) => a.type === 4);
+  const nonCustomActivities = rawActivities.filter((a) => a.type !== 4);
+
+  setDiscordPresence({
+    status: payload.discord_status ?? 'offline',
+    username: user.username,
+    displayName: user.global_name || user.display_name || user.username || PROFILE.fullName,
+    avatarUrl,
+    customStatus: customAct?.state || customAct?.details || null,
+    customStatusEmoji: customAct?.emoji ?? null,
+    activities: nonCustomActivities,
+    listeningToSpotify: Boolean(payload.listening_to_spotify && payload.spotify),
+    spotify: payload.spotify ?? null,
+    platforms: {
+      desktop: Boolean(payload.active_on_discord_desktop),
+      mobile: Boolean(payload.active_on_discord_mobile),
+      web: Boolean(payload.active_on_discord_web),
+    },
+    connected: viaSocket,
+    usingFallback: false,
+    unreachable: false,
+  });
+}
+
+export function useDiscordPresence(): void {
   useEffect(() => {
     const userId = PROFILE.discordUserId.trim();
     const isPlaceholder = !userId || userId.startsWith('TODO') || !/^\d{15,22}$/.test(userId);
 
+    // Expose window.__setPresence for Playwright & interactive testing
+    if (typeof window !== 'undefined') {
+      const win = window as unknown as Record<string, unknown>;
+      win.__setPresence = (mockPayload: LanyardDataPayload | null) => {
+        if (!mockPayload) {
+          mockOverrideActive = false;
+          return;
+        }
+        mockOverrideActive = true;
+        const normalized: LanyardDataPayload = {
+          discord_user: mockPayload.unreachable
+            ? undefined
+            : (mockPayload.discord_user ?? {
+                id: userId || '832522840682790913',
+                username: 'christovandy',
+                global_name: PROFILE.fullName,
+                avatar: null,
+              }),
+          ...mockPayload,
+        };
+        applyPresencePayloadToStore(normalized, !mockPayload.unreachable, userId);
+      };
+    }
+
     if (isPlaceholder) {
-      setDiscordPresence({
+      useAppStore.getState().setDiscordPresence({
         status: 'offline',
         username: 'christovandy',
         displayName: PROFILE.fullName,
         avatarUrl: null,
         customStatus: 'CONFIGURE discordUserId IN src/config/profile.ts FOR LIVE LANYARD SYNC',
+        customStatusEmoji: null,
         activities: [
           {
             name: 'PILOT FILE // ENTRY PLUG',
@@ -60,73 +182,25 @@ export function useDiscordPresence(): void {
         ],
         listeningToSpotify: false,
         spotify: null,
+        platforms: { desktop: false, mobile: false, web: false },
         connected: false,
         usingFallback: true,
+        unreachable: false,
       });
       return;
     }
 
-    let ws: WebSocket | null = null;
-    let heartbeatTimer: number | null = null;
-    let reconnectTimer: number | null = null;
-    let pollTimer: number | null = null;
-    let unmounted = false;
+    subscriberCount += 1;
 
-    const applyLanyardPayload = (payload: LanyardDataPayload, viaSocket: boolean) => {
-      if (unmounted) return;
-      const user = payload.discord_user;
-
-      if (!user) {
-        console.warn(
-          `[Lanyard] Discord User ID "${userId}" is connected to Lanyard API, but presence is not monitored yet. To broadcast your live status, join the official Lanyard Discord server: https://discord.gg/lanyard (no bot invite required).`,
-        );
-        setDiscordPresence({
-          status: 'offline',
-          username: 'christovandy',
-          displayName: PROFILE.fullName,
-          avatarUrl: null,
-          customStatus: 'JOIN DISCORD.GG/LANYARD TO SYNC STATUS',
-          activities: [
-            {
-              name: 'LANYARD // AWAITING SERVER LINK',
-              type: 0,
-              details: `Discord User ID: ${userId}`,
-              state: 'Join discord.gg/lanyard to bridge presence',
-              timestamps: { start: Date.now() },
-            },
-          ],
-          listeningToSpotify: false,
-          spotify: null,
-          connected: viaSocket,
-          usingFallback: true,
-        });
-        return;
+    const stopRestPolling = () => {
+      if (sharedPollTimer !== null) {
+        clearInterval(sharedPollTimer);
+        sharedPollTimer = null;
       }
-
-      const avatarUrl =
-        user?.id && user?.avatar
-          ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=256`
-          : null;
-
-      const rawActivities = payload.activities ?? [];
-      const customAct = rawActivities.find((a) => a.type === 4);
-      const nonCustomActivities = rawActivities.filter((a) => a.type !== 4);
-
-      setDiscordPresence({
-        status: payload.discord_status ?? 'offline',
-        username: user.username,
-        displayName: user.global_name || user.display_name || user.username || PROFILE.fullName,
-        avatarUrl,
-        customStatus: customAct?.state || customAct?.details || null,
-        activities: nonCustomActivities,
-        listeningToSpotify: Boolean(payload.listening_to_spotify && payload.spotify),
-        spotify: payload.spotify ?? null,
-        connected: viaSocket,
-        usingFallback: false,
-      });
     };
 
     const pollRestFallback = async () => {
+      if (mockOverrideActive) return;
       try {
         const res = await fetch(`https://api.lanyard.rest/v1/users/${encodeURIComponent(userId)}`);
         if (!res.ok) {
@@ -134,60 +208,66 @@ export function useDiscordPresence(): void {
             error?: { code?: string; message?: string };
           } | null;
           if (errJson?.error?.code === 'user_not_monitored') {
-            console.warn(
-              `[Lanyard] User ID "${userId}" is not being monitored by Lanyard. Join https://discord.gg/lanyard to enable live status.`,
-            );
+            applyPresencePayloadToStore({}, false, userId);
+            return;
           }
+          applyPresencePayloadToStore({ unreachable: true }, false, userId);
           return;
         }
         const json = (await res.json()) as { success?: boolean; data?: LanyardDataPayload };
-        if (json.success && json.data) {
-          applyLanyardPayload(json.data, false);
+        if (json.success && json.data && !mockOverrideActive) {
+          applyPresencePayloadToStore(json.data, false, userId);
         }
       } catch {
-        // Ignore network errors during fallback polling
+        if (!mockOverrideActive) {
+          applyPresencePayloadToStore({ unreachable: true }, false, userId);
+        }
       }
     };
 
     const startRestPolling = () => {
-      if (pollTimer !== null) return;
+      if (sharedPollTimer !== null) return;
       void pollRestFallback();
-      pollTimer = window.setInterval(() => {
+      sharedPollTimer = window.setInterval(() => {
         void pollRestFallback();
       }, 30000);
     };
 
-    const stopRestPolling = () => {
-      if (pollTimer !== null) {
-        clearInterval(pollTimer);
-        pollTimer = null;
-      }
-    };
-
     const connectSocket = () => {
-      if (unmounted) return;
+      if (subscriberCount <= 0) return;
+      if (
+        sharedWs &&
+        (sharedWs.readyState === WebSocket.OPEN || sharedWs.readyState === WebSocket.CONNECTING)
+      ) {
+        return;
+      }
+
       try {
-        ws = new WebSocket('wss://api.lanyard.rest/socket');
+        sharedWs = new WebSocket('wss://api.lanyard.rest/socket');
+        if (typeof window !== 'undefined') {
+          const win = window as unknown as Record<string, unknown>;
+          win.__LANYARD_SOCKET_COUNT__ = ((win.__LANYARD_SOCKET_COUNT__ as number) || 0) + 1;
+        }
       } catch {
         startRestPolling();
         return;
       }
 
-      ws.onmessage = (event) => {
+      sharedWs.onmessage = (event) => {
+        if (mockOverrideActive) return;
         try {
           const msg = JSON.parse(event.data as string) as LanyardSocketMessage;
           if (msg.op === 1 && msg.d?.heartbeat_interval) {
-            // op 1: Hello -> send op 2 Initialize and start op 3 heartbeat loop
-            ws?.send(
+            sharedWs?.send(
               JSON.stringify({
                 op: 2,
                 d: { subscribe_to_id: userId },
               }),
             );
-            if (heartbeatTimer !== null) clearInterval(heartbeatTimer);
-            heartbeatTimer = window.setInterval(() => {
-              if (ws?.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ op: 3 }));
+            if (sharedHeartbeatTimer !== null) clearInterval(sharedHeartbeatTimer);
+            sharedHeartbeatTimer = window.setInterval(() => {
+              if (sharedWs?.readyState === WebSocket.OPEN) {
+                sharedWs.send(JSON.stringify({ op: 3 }));
               }
             }, msg.d.heartbeat_interval);
           } else if (
@@ -195,42 +275,52 @@ export function useDiscordPresence(): void {
             (msg.t === 'INIT_STATE' || msg.t === 'PRESENCE_UPDATE') &&
             msg.d
           ) {
-            retryAttemptRef.current = 0;
+            retryAttempt = 0;
             stopRestPolling();
-            applyLanyardPayload(msg.d, true);
+            applyPresencePayloadToStore(msg.d, true, userId);
           }
         } catch {
           // Ignore malformed frame
         }
       };
 
-      ws.onerror = () => {
-        ws?.close();
+      sharedWs.onerror = () => {
+        sharedWs?.close();
       };
 
-      ws.onclose = () => {
-        if (heartbeatTimer !== null) {
-          clearInterval(heartbeatTimer);
-          heartbeatTimer = null;
+      sharedWs.onclose = () => {
+        if (sharedHeartbeatTimer !== null) {
+          clearInterval(sharedHeartbeatTimer);
+          sharedHeartbeatTimer = null;
         }
-        if (unmounted) return;
-        // Start 30s REST polling fallback while socket is down, and schedule exponential backoff reconnect
+        sharedWs = null;
+        if (subscriberCount <= 0) return;
         startRestPolling();
-        const attempt = retryAttemptRef.current;
-        retryAttemptRef.current = Math.min(attempt + 1, 6);
+        const attempt = retryAttempt;
+        retryAttempt = Math.min(attempt + 1, 6);
         const backoffMs = Math.min(30000, 1500 * Math.pow(2, attempt));
-        reconnectTimer = window.setTimeout(connectSocket, backoffMs);
+        if (sharedReconnectTimer !== null) clearTimeout(sharedReconnectTimer);
+        sharedReconnectTimer = window.setTimeout(connectSocket, backoffMs);
       };
     };
 
     connectSocket();
 
     return () => {
-      unmounted = true;
-      if (heartbeatTimer !== null) clearInterval(heartbeatTimer);
-      if (reconnectTimer !== null) clearTimeout(reconnectTimer);
-      stopRestPolling();
-      ws?.close();
+      subscriberCount = Math.max(0, subscriberCount - 1);
+      if (subscriberCount === 0) {
+        if (sharedHeartbeatTimer !== null) {
+          clearInterval(sharedHeartbeatTimer);
+          sharedHeartbeatTimer = null;
+        }
+        if (sharedReconnectTimer !== null) {
+          clearTimeout(sharedReconnectTimer);
+          sharedReconnectTimer = null;
+        }
+        stopRestPolling();
+        sharedWs?.close();
+        sharedWs = null;
+      }
     };
-  }, [setDiscordPresence]);
+  }, []);
 }

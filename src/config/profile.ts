@@ -43,6 +43,8 @@ export interface ProfileConfig {
   designationCode: string;
   roleTagline: string;
   location: string;
+  timezone: string;
+  nowBuilding: string[];
   bio: string[];
   interests: string[];
   coverCaption: string;
@@ -93,6 +95,11 @@ export const PROFILE: ProfileConfig = {
   designationCode: 'PILOT-FILE // 01',
   roleTagline: 'TODO: SYSTEMS & CREATIVE DEVELOPER // FULL-STACK ENGINEER',
   location: 'TODO: LOCATION / TIMEZONE (e.g. JAKARTA, ID // UTC+7)',
+  timezone: 'TODO: TIMEZONE (e.g. Asia/Jakarta)',
+  nowBuilding: [
+    'TODO: PILOT FILE // 2.5D MANGA ENGINE & DASHBOARD',
+    'TODO: LOW-LEVEL SYSTEMS & SHADER PIPELINES',
+  ],
   bio: [
     'TODO: Replace with Jonathan Erick Christovandy personal bio paragraph 1 — focusing on software engineering, low-level systems, and interactive web architecture.',
     'TODO: Replace with personal bio paragraph 2 — approach to craftsmanship, deterministic performance, and graphic user interfaces.',

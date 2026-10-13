@@ -4,6 +4,7 @@ import { computeIntroFrameTelemetry } from '../lib/introTimeline';
 import { CHAPTERS, useAppStore } from '../store/useAppStore';
 
 export const ScrollPill: React.FC = () => {
+  const activeRoute = useAppStore((s) => s.activeRoute);
   const activeChapter = useAppStore((s) => s.activeChapter);
   const onBlack = useAppStore((s) => s.onBlack);
   const introState = useAppStore((s) => s.introState);
@@ -17,10 +18,12 @@ export const ScrollPill: React.FC = () => {
 
   const isScrubbingIntro = debugScrubber.enabled && debugScrubber.mode === 'intro';
   const hudOpacity =
-    introState === 'done' && !isScrubbingIntro
-      ? 1
-      : computeIntroFrameTelemetry(introElapsedSec, isSkippingIntro, skipProgress, reducedMotion)
-          .hudOpacity;
+    activeRoute === '/dashboard'
+      ? 0
+      : introState === 'done' && !isScrubbingIntro
+        ? 1
+        : computeIntroFrameTelemetry(introElapsedSec, isSkippingIntro, skipProgress, reducedMotion)
+            .hudOpacity;
 
   useEffect(() => {
     const updatePill = () => {

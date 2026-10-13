@@ -5,13 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/postbuild-routes.mjs",
     "lint": "eslint .",
     "check:palette": "node scripts/check-palette.mjs",
     "check:transitions": "node scripts/transition-check.ts",
     "check:intro": "node scripts/intro-check.ts",
+    "check:dashboard": "node scripts/dashboard-check.ts",
     "verify": "node scripts/verify-scroll-flight.mjs",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "preview:ghpages": "node scripts/serve-like-ghpages.mjs"
   },
   "dependencies": {
     "@fontsource/anton": "^5.1.0",

@@ -13,17 +13,23 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { AdaptiveDpr, PerformanceMonitor } from '@react-three/drei';
 import { Canvas, createPortal, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { SCENES_CONFIG } from '../config/scenes.config';
 import { THEME_COLORS } from '../config/theme';
+import { DashboardWebGLStage } from '../dashboard/DashboardWebGLStage';
 import { useAppStore } from '../store/useAppStore';
 import {
   registerWebGLRenderer,
   refreshDynamicSceneLayer,
   syncSceneWindow,
 } from './art';
-import { applySceneCameraPose, CameraRig } from './CameraRig';
+import {
+  applyDashboardCameraPose,
+  applySceneCameraPose,
+  CameraRig,
+} from './CameraRig';
 import { IntroStage } from './intro/introScene';
 import { Layer } from './Layer';
 import { PostInk } from './PostInk';
@@ -73,6 +79,7 @@ const SubSceneLayers: React.FC<{ subScene: THREE.Scene }> = ({ subScene }) => {
               ))}
             </group>
           ))}
+          <DashboardWebGLStage role="sub" />
         </group>,
         subScene,
       )}
@@ -81,8 +88,8 @@ const SubSceneLayers: React.FC<{ subScene: THREE.Scene }> = ({ subScene }) => {
 };
 
 /**
- * Offscreen Transition Renderer: Renders `subScene` (`toIndex`) to `fbo` after `SubSceneLayers`
- * have updated their visibility, uniforms, and positions for the current frame.
+ * Offscreen Transition Renderer: Renders `subScene` (`toIndex` or incoming route) to `fbo`
+ * after `SubSceneLayers` have updated their visibility, uniforms, and positions for the current frame.
  */
 const SubSceneRenderer: React.FC<{
   subScene: THREE.Scene;
@@ -117,9 +124,10 @@ const SubSceneRenderer: React.FC<{
   useFrame(({ clock }) => {
     const state = useAppStore.getState();
     const { tau, fromIndex, toIndex } = state.chapterState;
+    const rt = state.routeTransition;
 
-    // Only render offscreen FBO when inside or approaching a transition
-    if (fromIndex === toIndex && tau <= 0.0001) {
+    // Only render offscreen FBO when inside or approaching a chapter or route transition
+    if (!rt.active && (state.activeRoute !== '/' || (fromIndex === toIndex && tau <= 0.0001))) {
       return;
     }
 
@@ -133,20 +141,36 @@ const SubSceneRenderer: React.FC<{
     subCamera.aspect = size.width / Math.max(1, size.height);
     subCamera.updateProjectionMatrix();
 
-    // Settle incoming camera pull-back smoothly to 0.000 by tau = 0.85 so that for tau in [0.85, 1.0]
-    // subCamera has the exact same position, idle drift, lookAt, and roll as CameraRig at t = 0
-    const settleT = THREE.MathUtils.smoothstep(tau, 0.0, 0.85);
-    const pullBackBlend = 1.0 - settleT;
+    if (rt.active) {
+      if (rt.direction === 'to-dashboard') {
+        applyDashboardCameraPose(subCamera);
+      } else {
+        applySceneCameraPose(
+          subCamera,
+          0,
+          0,
+          clock.getElapsedTime(),
+          size,
+          state.reducedMotion,
+          0,
+        );
+      }
+    } else {
+      // Settle incoming camera pull-back smoothly to 0.000 by tau = 0.85 so that for tau in [0.85, 1.0]
+      // subCamera has the exact same position, idle drift, lookAt, and roll as CameraRig at t = 0
+      const settleT = THREE.MathUtils.smoothstep(tau, 0.0, 0.85);
+      const pullBackBlend = 1.0 - settleT;
 
-    applySceneCameraPose(
-      subCamera,
-      toIndex,
-      0,
-      clock.getElapsedTime(),
-      size,
-      state.reducedMotion,
-      pullBackBlend,
-    );
+      applySceneCameraPose(
+        subCamera,
+        toIndex,
+        0,
+        clock.getElapsedTime(),
+        size,
+        state.reducedMotion,
+        pullBackBlend,
+      );
+    }
 
     const prevTarget = gl.getRenderTarget();
     gl.setRenderTarget(fbo);
@@ -166,6 +190,7 @@ export const Scene: React.FC = () => {
   const discordStatus = useAppStore((s) => s.discord.status);
   const hoveredRepoIndex = useAppStore((s) => s.hoveredRepoIndex);
   const [tabVisible, setTabVisible] = useState<boolean>(true);
+  const [dprScale, setDprScale] = useState<number>(1);
 
   const subScene = useMemo(() => {
     const s = new THREE.Scene();
@@ -222,13 +247,16 @@ export const Scene: React.FC = () => {
     };
   }, [fbo]);
 
+  const maxDpr = isMobile ? 1.5 : 2;
+  const activeMaxDpr = Math.max(1, Math.min(maxDpr, maxDpr * dprScale));
+
   return (
     <div
       className="fixed inset-0 z-0 pointer-events-none bg-paper-pure"
       aria-hidden="true"
     >
       <Canvas
-        dpr={isMobile ? [1, 1.5] : [1, 2]}
+        dpr={[1, activeMaxDpr]}
         frameloop={!tabVisible ? 'never' : 'always'}
         camera={{ position: [0, 0.14, 6.0], fov: 50, near: 0.1, far: 50 }}
         gl={{
@@ -239,6 +267,11 @@ export const Scene: React.FC = () => {
         }}
       >
         <color attach="background" args={[THEME_COLORS.paperPure]} />
+        <PerformanceMonitor
+          onIncline={() => setDprScale(1)}
+          onDecline={() => setDprScale(0.8)}
+        />
+        <AdaptiveDpr />
 
         <RendererReadinessBridge />
         <CameraRig />
@@ -258,6 +291,7 @@ export const Scene: React.FC = () => {
               ))}
             </group>
           ))}
+          <DashboardWebGLStage role="main" />
         </group>
 
         {/* Offscreen Sub-Scene layers + FBO render pass in strict execution order */}

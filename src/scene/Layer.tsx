@@ -138,11 +138,26 @@ export const Layer: React.FC<LayerProps> = ({
       return;
     }
 
-    // Synchronous single-clock visibility check (no React re-render delay on boundary crossing)
-    const isActiveSceneForRole =
-      role === 'main'
-        ? cs.fromScene === sceneId
-        : cs.toScene === sceneId && (cs.tau > 0.0001 || cs.fromIndex !== cs.toIndex);
+    const rt = state.routeTransition;
+
+    // Synchronous single-clock + route-transition visibility check
+    let isActiveSceneForRole = false;
+    if (role === 'main') {
+      const mainShowingHome =
+        (state.activeRoute === '/' && !rt.active) ||
+        (rt.active && rt.direction === 'to-dashboard');
+      isActiveSceneForRole = mainShowingHome && cs.fromScene === sceneId;
+    } else {
+      if (rt.active) {
+        isActiveSceneForRole =
+          rt.direction === 'to-home' && sceneId === 's1-causeway';
+      } else {
+        isActiveSceneForRole =
+          state.activeRoute === '/' &&
+          cs.toScene === sceneId &&
+          (cs.tau > 0.0001 || cs.fromIndex !== cs.toIndex);
+      }
+    }
 
     if (!isActiveSceneForRole) {
       if (meshRef.current) {
