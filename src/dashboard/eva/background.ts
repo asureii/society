@@ -623,98 +623,23 @@ export function drawEvaStageBackground(
     });
   }
 
-  // Snapped concrete highway overpass: elevated bridge deck over the avenue flanks
-  // Underside is heavy solid black with concrete pier; broken edge snaps off in mid-air
-  const overTop: Point2D[] = [
-    [W * 0.22, H * 0.50],
-    [W * 0.42, H * 0.465],
-    [W * 0.428, H * 0.485],
-    [W * 0.22, H * 0.52],
-  ];
-  const overBottom: Point2D[] = [
-    [W * 0.22, H * 0.52],
-    [W * 0.428, H * 0.485],
-    [W * 0.42, H * 0.535],
-    [W * 0.22, H * 0.57],
-  ];
-  const overPier: Point2D[] = [
-    [W * 0.35, H * 0.50],
-    [W * 0.38, H * 0.495],
-    [W * 0.385, H * 0.63],
-    [W * 0.345, H * 0.63],
-  ];
-
-  fillRoughenedPolygon(ctx, overPier, rng, THEME_COLORS.ink, 1.2);
-  fillRoughenedPolygon(ctx, overBottom, rng, THEME_COLORS.ink, 1.2);
-  fillRoughenedPolygon(ctx, overTop, rng, THEME_COLORS.paperPure, 0.8);
-  outlinePolygonWithInk(ctx, overTop, rng, { baseWidth: 2.2 });
-  outlinePolygonWithInk(ctx, overBottom, rng, { baseWidth: 2.4 });
-  outlinePolygonWithInk(ctx, overPier, rng, { baseWidth: 2.2 });
-
-  // White hanging rebar wires from broken overpass edge dangling in mid-air
-  for (let r = 0; r < 5; r++) {
-    const rx = W * 0.424 + rng.range(-2, 3);
-    const ry = H * 0.485 + r * 6.0;
-    drawInkStroke(
-      ctx,
-      [
-        [rx, ry],
-        [rx + rng.range(6, 15), ry + rng.range(8, 16)],
-        [rx + rng.range(4, 18), ry + rng.range(18, 28)],
-      ],
-      rng,
-      { baseWidth: 1.2, color: THEME_COLORS.paperPure, taperScale: 1.3 }
-    );
-  }
-
-  // Snapped construction crane on top of Tower 2 (mast + cross-braced truss + bent jib arm)
-  const mastX = W * 0.77;
-  const mastBaseY = H * 0.15;
-  const mastTopY = H * 0.085;
-  drawInkStroke(
-    ctx,
-    [
-      [mastX - 3, mastBaseY],
-      [mastX - 3, mastTopY],
-    ],
-    rng,
-    { baseWidth: 2.4, color: THEME_COLORS.ink }
-  );
-  drawInkStroke(
-    ctx,
-    [
-      [mastX + 5, mastBaseY],
-      [mastX + 5, mastTopY],
-    ],
-    rng,
-    { baseWidth: 2.4, color: THEME_COLORS.ink }
-  );
-  // Cross bracing
-  for (let cb = 0; cb < 4; cb++) {
-    const cy0 = mastBaseY - cb * 12;
-    const cy1 = cy0 - 12;
-    drawInkStroke(ctx, [[mastX - 3, cy0], [mastX + 5, cy1]], rng, { baseWidth: 1.2, color: THEME_COLORS.ink });
-    drawInkStroke(ctx, [[mastX + 5, cy0], [mastX - 3, cy1]], rng, { baseWidth: 1.2, color: THEME_COLORS.ink });
-  }
-  // Jib arm angling rightward away from orb
-  drawInkStroke(
-    ctx,
-    [
-      [mastX - 16, mastTopY + 4],
-      [mastX, mastTopY],
-      [mastX + 52, mastTopY + 10],
-      [mastX + 64, mastTopY + 22],
-    ],
-    rng,
-    { baseWidth: 2.2, color: THEME_COLORS.ink }
-  );
-  // Red warning beacon dot on top of crane mast
-  drawInkDot(ctx, mastX + 1, mastTopY - 3, 3.5, rng, THEME_COLORS.red);
+  // Far-left ruined tower on horizon behind Eva's shoulder (x = 0.02..0.08W, well clear of chin & avenue)
+  drawSolidRuinedTower(ctx, rng, {
+    x: W * 0.02,
+    botY: horizonY,
+    topY: H * 0.26,
+    width: 48,
+    leanPx: -2,
+    brokenRoofSteps: 3,
+    splitChasm: true,
+    peelingFloors: true,
+    orbX,
+  });
 
   recorder.captureStage(canvas, 0.5, 0.75, 'bottom-up');
 
   // ===========================================================================
-  // STAGE 4 (1.00): ROAD SHADOW WEDGES, GROUND POOLS, FOREGROUND RUBBLE & REFLECTION
+  // STAGE 4 (1.00): GROUND PLANE, PERSPECTIVE ROAD, REFLECTION & CORNER RUBBLE
   // ===========================================================================
   // Clean ground plane
   const groundPoly: Point2D[] = [
@@ -725,75 +650,19 @@ export function drawEvaStageBackground(
   ];
   fillRoughenedPolygon(ctx, groundPoly, rng, THEME_COLORS.paper, 0.8);
 
-  // Dense black pools of shadow beneath ruins along horizon
-  const shadowPools: Point2D[][] = [
-    // Beneath overpass pier and left ruins
-    [
-      [W * 0.28, horizonY],
-      [W * 0.38, horizonY],
-      [W * 0.37, horizonY + 20],
-      [W * 0.29, horizonY + 20],
-    ],
-    // Beneath right tower cluster
-    [
-      [W * 0.68, horizonY],
-      [W * 0.98, horizonY],
-      [W * 0.97, horizonY + 16],
-      [W * 0.69, horizonY + 16],
-    ],
+  // Dense black shadow pool beneath right tower cluster along horizon (grounds the towers)
+  const rightShadowPool: Point2D[] = [
+    [W * 0.70, horizonY],
+    [W * 0.98, horizonY],
+    [W * 0.97, horizonY + 14],
+    [W * 0.71, horizonY + 14],
   ];
-  for (const sp of shadowPools) {
-    fillRoughenedPolygon(ctx, sp, rng, THEME_COLORS.ink, 1.4);
-    hatchPolygonClipped(ctx, sp, rng, {
-      angleRad: 0.05,
-      spacing: 4.5,
-      baseWidth: 1.8,
-    });
-  }
-
-  // Long solid shadow wedges cast across the street from the ruins, pointing away from the red dot
-  // Left shadow wedge along the left curb under the overpass (x = 0.26..0.36W)
-  const leftShadowWedge: Point2D[] = [
-    [W * 0.28, horizonY + 6],
-    [W * 0.38, horizonY + 10],
-    [W * 0.35, H * 0.78],
-    [W * 0.22, H * 0.76],
-  ];
-  fillRoughenedPolygon(ctx, leftShadowWedge, rng, THEME_COLORS.ink, 1.4);
-  outlinePolygonWithInk(ctx, leftShadowWedge, rng, { baseWidth: 2.2, dryBrush: true });
-  hatchPolygonClipped(ctx, leftShadowWedge, rng, {
-    angleRad: -0.32,
-    spacing: 3.2,
-    baseWidth: 2.0,
+  fillRoughenedPolygon(ctx, rightShadowPool, rng, THEME_COLORS.ink, 1.4);
+  hatchPolygonClipped(ctx, rightShadowPool, rng, {
+    angleRad: 0.05,
+    spacing: 4.5,
+    baseWidth: 1.8,
   });
-
-  // Right shadow wedge along the right curb from the right towers
-  const rightShadowWedge: Point2D[] = [
-    [W * 0.65, horizonY + 12],
-    [W * 0.72, horizonY + 14],
-    [W * 0.73, H * 0.76],
-    [W * 0.63, H * 0.74],
-  ];
-  fillRoughenedPolygon(ctx, rightShadowWedge, rng, THEME_COLORS.ink, 1.4);
-  outlinePolygonWithInk(ctx, rightShadowWedge, rng, { baseWidth: 2.2, dryBrush: true });
-
-  // White broken hairline cracks cut through the road shadow wedges
-  for (const sw of [leftShadowWedge, rightShadowWedge]) {
-    const cx0 = (sw[0][0] + sw[1][0]) * 0.5;
-    const cy0 = (sw[0][1] + sw[1][1]) * 0.5;
-    const cx1 = (sw[2][0] + sw[3][0]) * 0.5;
-    const cy1 = (sw[2][1] + sw[3][1]) * 0.5;
-    drawInkStroke(
-      ctx,
-      [
-        [cx0, cy0 + 16],
-        [cx0 + (cx1 - cx0) * 0.5 + rng.range(-8, 8), cy0 + (cy1 - cy0) * 0.5],
-        [cx1, cy1 - 16],
-      ],
-      rng,
-      { baseWidth: 1.4, color: THEME_COLORS.paperPure, taperScale: 1.3 }
-    );
-  }
 
   // Horizon baseline
   drawInkStroke(
@@ -805,58 +674,6 @@ export function drawEvaStageBackground(
     rng,
     { baseWidth: 2.0, wobbleScale: 0.2 }
   );
-
-  // Tilted utility poles and sagging power lines crossing the avenue
-  // Left leaning utility pole along avenue curb
-  const poleLeft: Point2D[] = [
-    [W * 0.44, H * 0.68],
-    [W * 0.43, H * 0.54],
-  ];
-  drawInkStroke(ctx, poleLeft, rng, { baseWidth: 2.6, color: THEME_COLORS.ink });
-  // Crossbar
-  drawInkStroke(
-    ctx,
-    [
-      [W * 0.41, H * 0.56],
-      [W * 0.45, H * 0.56],
-    ],
-    rng,
-    { baseWidth: 1.8, color: THEME_COLORS.ink }
-  );
-
-  // Right broken utility pole
-  const poleRight: Point2D[] = [
-    [W * 0.65, H * 0.66],
-    [W * 0.66, H * 0.54],
-  ];
-  drawInkStroke(ctx, poleRight, rng, { baseWidth: 2.4, color: THEME_COLORS.ink });
-  drawInkStroke(
-    ctx,
-    [
-      [W * 0.64, H * 0.56],
-      [W * 0.68, H * 0.56],
-    ],
-    rng,
-    { baseWidth: 1.8, color: THEME_COLORS.ink }
-  );
-
-  // Sagging power lines looping across the road (catenary arcs)
-  for (let wire = 0; wire < 3; wire++) {
-    const yOff = wire * 6;
-    const wPts: Point2D[] = [
-      [W * 0.42 + wire * 3, H * 0.56 + yOff],
-      [W * 0.48, H * 0.59 + yOff],
-      [W * 0.54, H * 0.61 + yOff],
-      [W * 0.60, H * 0.59 + yOff],
-      [W * 0.66 + wire * 2, H * 0.56 + yOff],
-    ];
-    drawInkStroke(ctx, wPts, rng, {
-      baseWidth: 1.1,
-      color: THEME_COLORS.ink,
-      wobbleScale: 0.2,
-      breakChance: 0.1,
-    });
-  }
 
   // One-point perspective avenue curb lines radiating to (vpX, vpY)
   // Center of road (W*0.44..W*0.58) stays pale white paper as the illuminated path leading to the horizon!
@@ -944,10 +761,10 @@ export function drawEvaStageBackground(
   // Foreground rubble: concrete chunks strictly in bottom corners
   // Bottom-left corner rubble (behind/below Eva's torso, clear of chin & road)
   const rubbleLeft: Point2D[] = [
-    [0, H * 0.84],
-    [W * 0.15, H * 0.82],
-    [W * 0.17, H * 0.94],
-    [W * 0.11, H],
+    [0, H * 0.74],
+    [W * 0.16, H * 0.72],
+    [W * 0.18, H * 0.88],
+    [W * 0.13, H],
     [0, H],
   ];
   fillRoughenedPolygon(ctx, rubbleLeft, rng, THEME_COLORS.ink, 1.6);
