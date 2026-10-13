@@ -133,8 +133,11 @@ const EVA_REVEAL_FRAG = /* glsl */ `
       : (1.0 - smoothstep(uReveal - 0.05, uReveal + 0.01, orderVal * 0.94));
 
     if (uIsBackground > 0.5) {
+      bool isRed = (tex.r - max(tex.g, tex.b)) > 0.18;
       float isInk = step(0.45, 1.0 - tex.r) * edgeMask;
-      vec3 col = mix(uColorPaper, uColorInk, isInk);
+      vec3 col = isRed
+        ? mix(uColorPaper, uColorRed, edgeMask)
+        : mix(uColorPaper, uColorInk, isInk);
       gl_FragColor = vec4(col, 1.0);
       return;
     }
@@ -321,6 +324,7 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
   const [, setArtTick] = useState(0);
 
   const stageGroupRef = useRef<THREE.Group | null>(null);
+  const bgMeshRef = useRef<THREE.Mesh | null>(null);
   const bgMatRef = useRef<THREE.ShaderMaterial | null>(null);
   const torsoMatRef = useRef<THREE.ShaderMaterial | null>(null);
   const neckMatRef = useRef<THREE.ShaderMaterial | null>(null);
@@ -627,8 +631,18 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
 
     const persp = camera as THREE.PerspectiveCamera;
     const camZ = persp.position.z || 4.8;
-    const vHAtZero = 2 * Math.tan(THREE.MathUtils.degToRad((persp.fov || 50) * 0.5)) * camZ;
-    const vWAtZero = vHAtZero * (persp.aspect || size.width / Math.max(1, size.height));
+    const fovRad = THREE.MathUtils.degToRad((persp.fov || 50) * 0.5);
+    const aspect = persp.aspect || size.width / Math.max(1, size.height);
+    const vHAtZero = 2 * Math.tan(fovRad) * camZ;
+    const vWAtZero = vHAtZero * aspect;
+
+    if (bgMeshRef.current) {
+      const camDistBg = Math.abs(camZ - (-2.0));
+      const vHAtBg = 2 * Math.tan(fovRad) * camDistBg;
+      const vWAtBg = vHAtBg * aspect;
+      bgMeshRef.current.position.set(0, persp.position.y, -2.0);
+      bgMeshRef.current.scale.set(vWAtBg * 1.02, vHAtBg * 1.02, 1);
+    }
 
     if (rigRootGroupRef.current) {
       if (isMob) {
@@ -965,8 +979,8 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
 
   return (
     <group ref={stageGroupRef} name={`dashboard-webgl-stage-${role}`} visible={false}>
-      <mesh position={[0, 0, -2.0]} renderOrder={0}>
-        <planeGeometry args={[18, 12]} />
+      <mesh ref={bgMeshRef} position={[0, 0, -2.0]} renderOrder={0}>
+        <planeGeometry args={[1, 1]} />
         <shaderMaterial
           ref={bgMatRef}
           vertexShader={LAYER_VERT}

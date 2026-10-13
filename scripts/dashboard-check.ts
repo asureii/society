@@ -30,6 +30,15 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 
 import { EVA_CONFIG, type SpringSpec } from '../src/dashboard/eva.config.ts';
+import { drawEvaStageBackground } from '../src/dashboard/eva/background.ts';
+import { drawEvaNeckLayer, drawEvaTorsoLayer } from '../src/dashboard/eva/body.ts';
+import { drawEvaDripsLayer } from '../src/dashboard/eva/drips.ts';
+import { drawEvaEyeLayer, drawEvaPupilLayer } from '../src/dashboard/eva/eye.ts';
+import type { AnyCanvas, EvaDrawOrderRecorder } from '../src/dashboard/eva/evaSurface.ts';
+import { drawEvaHeadLayer } from '../src/dashboard/eva/head.ts';
+import { drawEvaJawLayer } from '../src/dashboard/eva/jaw.ts';
+import { EVA_PROPORTIONS } from '../src/dashboard/eva/proportions.ts';
+import { EVA_SKELETON, hToPx } from '../src/dashboard/eva/skeleton.ts';
 import {
   DASHBOARD_LAYOUT_CONFIG,
   type DashboardWidgetSize,
@@ -48,7 +57,7 @@ import {
   stageInputState,
 } from '../src/dashboard/stageInput.ts';
 import { clamp, lerp } from '../src/lib/math.ts';
-import { createRng } from '../src/scene/art/rng.ts';
+import type { Canvas2DContext, Point2D } from '../src/scene/art/inkBrush.ts';
 
 const ARTIFACT_DIR =
   '/home/camellia/.gemini/antigravity/brain/683e5720-4314-404d-a02f-3565c7a59edc';
@@ -328,6 +337,286 @@ class RasterSurface {
   }
 }
 
+function parseHexColor(col: string): [number, number, number, number] {
+  const c = col.trim().toUpperCase();
+  if (c === '#FFFFFF') return [255, 255, 255, 255];
+  if (c === '#FAFAF8') return [250, 250, 248, 255];
+  if (c === '#D4141C') return [212, 20, 28, 255];
+  return [10, 10, 10, 255];
+}
+
+class SoftwareCanvas2D {
+  width: number;
+  height: number;
+  data: Uint8ClampedArray;
+  fillStyle = '#0A0A0A';
+  private subpaths: Point2D[][] = [];
+  private currentPath: Point2D[] = [];
+
+  constructor(width: number, height: number) {
+    this.width = width;
+    this.height = height;
+    this.data = new Uint8ClampedArray(width * height * 4);
+  }
+
+  getContext(_type: '2d'): Canvas2DContext {
+    return this as unknown as Canvas2DContext;
+  }
+
+  clearRect(x: number, y: number, w: number, h: number): void {
+    const x0 = Math.max(0, Math.floor(x));
+    const y0 = Math.max(0, Math.floor(y));
+    const x1 = Math.min(this.width, Math.ceil(x + w));
+    const y1 = Math.min(this.height, Math.ceil(y + h));
+    for (let py = y0; py < y1; py++) {
+      for (let px = x0; px < x1; px++) {
+        const i = (py * this.width + px) * 4;
+        this.data[i] = 0;
+        this.data[i + 1] = 0;
+        this.data[i + 2] = 0;
+        this.data[i + 3] = 0;
+      }
+    }
+  }
+
+  fillRect(x: number, y: number, w: number, h: number): void {
+    const [r, g, b, a] = parseHexColor(this.fillStyle);
+    const x0 = Math.max(0, Math.floor(x));
+    const y0 = Math.max(0, Math.floor(y));
+    const x1 = Math.min(this.width, Math.ceil(x + w));
+    const y1 = Math.min(this.height, Math.ceil(y + h));
+    for (let py = y0; py < y1; py++) {
+      for (let px = x0; px < x1; px++) {
+        const i = (py * this.width + px) * 4;
+        this.data[i] = r;
+        this.data[i + 1] = g;
+        this.data[i + 2] = b;
+        this.data[i + 3] = a;
+      }
+    }
+  }
+
+  beginPath(): void {
+    this.subpaths = [];
+    this.currentPath = [];
+  }
+
+  moveTo(x: number, y: number): void {
+    if (this.currentPath.length > 0) {
+      this.subpaths.push(this.currentPath);
+    }
+    this.currentPath = [[x, y]];
+  }
+
+  lineTo(x: number, y: number): void {
+    this.currentPath.push([x, y]);
+  }
+
+  closePath(): void {
+    if (this.currentPath.length > 0) {
+      this.subpaths.push(this.currentPath);
+      this.currentPath = [];
+    }
+  }
+
+  fill(): void {
+    if (this.currentPath.length > 0) {
+      this.subpaths.push(this.currentPath);
+      this.currentPath = [];
+    }
+    const [r, g, b, a] = parseHexColor(this.fillStyle);
+    for (const poly of this.subpaths) {
+      if (poly.length < 3) continue;
+      let minY = this.height - 1;
+      let maxY = 0;
+      for (const [, py] of poly) {
+        if (py < minY) minY = py;
+        if (py > maxY) maxY = py;
+      }
+      const yStart = Math.max(0, Math.floor(minY));
+      const yEnd = Math.min(this.height - 1, Math.ceil(maxY));
+
+      for (let y = yStart; y <= yEnd; y++) {
+        const sampleY = y + 0.5;
+        const nodes: number[] = [];
+        for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+          const [xi, yi] = poly[i];
+          const [xj, yj] = poly[j];
+          if ((yi < sampleY && yj >= sampleY) || (yj < sampleY && yi >= sampleY)) {
+            nodes.push(xi + ((sampleY - yi) / (yj - yi)) * (xj - xi));
+          }
+        }
+        nodes.sort((m, n) => m - n);
+        for (let k = 0; k < nodes.length - 1; k += 2) {
+          const xStart = Math.max(0, Math.floor(nodes[k]));
+          const xEnd = Math.min(this.width - 1, Math.ceil(nodes[k + 1]));
+          for (let x = xStart; x <= xEnd; x++) {
+            const idx = (y * this.width + x) * 4;
+            this.data[idx] = r;
+            this.data[idx + 1] = g;
+            this.data[idx + 2] = b;
+            this.data[idx + 3] = a;
+          }
+        }
+      }
+    }
+  }
+
+  getImageData(x: number, y: number, w: number, h: number): ImageData {
+    if (x === 0 && y === 0 && w === this.width && h === this.height) {
+      return { data: new Uint8ClampedArray(this.data), width: w, height: h } as ImageData;
+    }
+    const out = new Uint8ClampedArray(w * h * 4);
+    for (let row = 0; row < h; row++) {
+      for (let col = 0; col < w; col++) {
+        const sx = Math.min(this.width - 1, Math.max(0, x + col));
+        const sy = Math.min(this.height - 1, Math.max(0, y + row));
+        const sIdx = (sy * this.width + sx) * 4;
+        const dIdx = (row * w + col) * 4;
+        out[dIdx] = this.data[sIdx];
+        out[dIdx + 1] = this.data[sIdx + 1];
+        out[dIdx + 2] = this.data[sIdx + 2];
+        out[dIdx + 3] = this.data[sIdx + 3];
+      }
+    }
+    return { data: out, width: w, height: h } as ImageData;
+  }
+
+  putImageData(img: ImageData, dx: number, dy: number): void {
+    for (let y = 0; y < img.height; y++) {
+      for (let x = 0; x < img.width; x++) {
+        const tx = dx + x;
+        const ty = dy + y;
+        if (tx < 0 || tx >= this.width || ty < 0 || ty >= this.height) continue;
+        const sIdx = (y * img.width + x) * 4;
+        const dIdx = (ty * this.width + tx) * 4;
+        this.data[dIdx] = img.data[sIdx];
+        this.data[dIdx + 1] = img.data[sIdx + 1];
+        this.data[dIdx + 2] = img.data[sIdx + 2];
+        this.data[dIdx + 3] = img.data[sIdx + 3];
+      }
+    }
+  }
+
+  drawImage(
+    src: SoftwareCanvas2D,
+    dx: number,
+    dy: number,
+    dw?: number,
+    dh?: number
+  ): void {
+    const targetW = dw ?? src.width;
+    const targetH = dh ?? src.height;
+    for (let y = 0; y < targetH; y++) {
+      const sy = Math.min(src.height - 1, Math.floor((y / targetH) * src.height));
+      const ty = Math.round(dy + y);
+      if (ty < 0 || ty >= this.height) continue;
+      for (let x = 0; x < targetW; x++) {
+        const sx = Math.min(src.width - 1, Math.floor((x / targetW) * src.width));
+        const tx = Math.round(dx + x);
+        if (tx < 0 || tx >= this.width) continue;
+        const sIdx = (sy * src.width + sx) * 4;
+        const a = src.data[sIdx + 3];
+        if (a < 20) continue;
+        const dIdx = (ty * this.width + tx) * 4;
+        this.data[dIdx] = src.data[sIdx];
+        this.data[dIdx + 1] = src.data[sIdx + 1];
+        this.data[dIdx + 2] = src.data[sIdx + 2];
+        this.data[dIdx + 3] = 255;
+      }
+    }
+  }
+}
+
+const noopEvaRecorder: EvaDrawOrderRecorder = {
+  captureStage: () => {},
+  finalizeCanvas: () => new SoftwareCanvas2D(512, 512) as unknown as AnyCanvas,
+};
+
+let cachedStageLayers: {
+  bg: SoftwareCanvas2D;
+  evaBodyAndHead: SoftwareCanvas2D;
+  eye: SoftwareCanvas2D;
+  pupil: SoftwareCanvas2D;
+} | null = null;
+
+function getCachedStageLayers() {
+  if (cachedStageLayers) return cachedStageLayers;
+  const S = 1024;
+  const sk = EVA_SKELETON;
+  const hPx = sk.headUnitPx;
+  const make = (
+    fn: (ctx: Canvas2DContext, c: AnyCanvas, r: EvaDrawOrderRecorder) => void,
+    sz = S
+  ) => {
+    const c = new SoftwareCanvas2D(sz, sz);
+    fn(c.getContext('2d'), c as unknown as AnyCanvas, noopEvaRecorder);
+    return c;
+  };
+  const bg = make((ctx, c, r) => drawEvaStageBackground(ctx, c, r, 701), S);
+  const torso = make((ctx, c, r) => drawEvaTorsoLayer(ctx, c, r, 709), S);
+  const neck = make((ctx, c, r) => drawEvaNeckLayer(ctx, c, r, 707), S);
+  const head = make((ctx, c, r) => drawEvaHeadLayer(ctx, c, r, 719), S);
+  const jaw = make((ctx, c, r) => drawEvaJawLayer(ctx, c, r, 727), S);
+  const drips = make((ctx, c) => drawEvaDripsLayer(ctx, c, 743), S);
+  const eyeSmall = make((ctx, c) => drawEvaEyeLayer(ctx, c, 733), 256);
+  const pupilSmall = make((ctx, c) => drawEvaPupilLayer(ctx, c, true, 739), 256);
+
+  const evaBodyAndHead = new SoftwareCanvas2D(S, S);
+  for (const layer of [torso, neck, head, jaw, drips]) {
+    evaBodyAndHead.drawImage(layer, 0, 0);
+  }
+
+  const eyeCenterPx = hToPx(sk.joints.eyeCenter, S, sk);
+  const eyeBoxPx = Math.round(EVA_PROPORTIONS.head.eyeWidthH * hPx * 1.2);
+  const pupilBoxPx = Math.round(EVA_PROPORTIONS.head.eyeWidthH * hPx * 1.0);
+
+  const eye = new SoftwareCanvas2D(S, S);
+  eye.drawImage(
+    eyeSmall,
+    eyeCenterPx[0] - eyeBoxPx * 0.5,
+    eyeCenterPx[1] - eyeBoxPx * 0.5,
+    eyeBoxPx,
+    eyeBoxPx
+  );
+
+  const pupil = new SoftwareCanvas2D(S, S);
+  pupil.drawImage(
+    pupilSmall,
+    eyeCenterPx[0] - pupilBoxPx * 0.5,
+    eyeCenterPx[1] - pupilBoxPx * 0.5,
+    pupilBoxPx,
+    pupilBoxPx
+  );
+
+  cachedStageLayers = { bg, evaBodyAndHead, eye, pupil };
+  return cachedStageLayers;
+}
+
+function blitCanvasToSurface(
+  surface: RasterSurface,
+  src: SoftwareCanvas2D,
+  dx: number,
+  dy: number,
+  dw: number,
+  dh: number,
+  skipTransparent = true
+) {
+  for (let y = 0; y < dh; y++) {
+    const ty = Math.round(dy + y);
+    if (ty < 0 || ty >= surface.height) continue;
+    const sy = Math.min(src.height - 1, Math.floor((y / dh) * src.height));
+    for (let x = 0; x < dw; x++) {
+      const tx = Math.round(dx + x);
+      if (tx < 0 || tx >= surface.width) continue;
+      const sx = Math.min(src.width - 1, Math.floor((x / dw) * src.width));
+      const sIdx = (sy * src.width + sx) * 4;
+      if (skipTransparent && src.data[sIdx + 3] < 20) continue;
+      surface.setPixel(tx, ty, [src.data[sIdx], src.data[sIdx + 1], src.data[sIdx + 2]]);
+    }
+  }
+}
+
 interface RenderDashboardOptions {
   width: number;
   height: number;
@@ -349,263 +638,35 @@ function renderDashboardCompositedFrame(opts: RenderDashboardOptions): {
   const surface = new RasterSurface(W, H);
   const profile = resolveTargetPresenceProfile(status, unreachable);
   const isMob = W < 768;
-  const rng = createRng(701);
 
-  const eyeUv: [number, number] = isMob
-    ? [...STAGE_DASHBOARD_CONFIG.mobileEyeScreenPos]
-    : [...STAGE_DASHBOARD_CONFIG.eyeScreenPos];
   const orbUv: [number, number] =
     opts.orbUv ??
     (isMob
       ? [...STAGE_DASHBOARD_CONFIG.orb.mobileDefaultPos]
       : [...STAGE_DASHBOARD_CONFIG.orb.defaultPos]);
 
-  // 1. Faint radial speed lines around outer perimeter (keeping a clean paper halo around mouth & jaw drips)
-  const focusX = W * 0.25;
-  const focusY = H * (isMob ? 0.26 : 0.44);
-  for (let i = 0; i < 34; i++) {
-    const a = (i / 34) * Math.PI * 2;
-    const cosA = Math.cos(a);
-    const sinA = Math.sin(a);
-    if (cosA > 0.18 && sinA > -0.55 && sinA < 0.72 && !isMob) continue;
-    const r0 = W * 0.22;
-    const r1 = W * 0.34;
-    surface.drawLine(
-      focusX + cosA * r0,
-      focusY + sinA * r0,
-      focusX + cosA * r1,
-      focusY + sinA * r1,
-      1.5,
-      COL_INK
-    );
-  }
+  const layers = getCachedStageLayers();
 
-  // 2. Eva-01 Berserk Silhouette (left ~50% on desktop, top-left on mobile)
-  const sx = isMob ? (W * 0.56) / 800 : (W * 0.49) / 800;
-  const sy = isMob ? (H * 0.42) / 960 : (H * 0.88) / 960;
-  const ox = W * 0.02;
-  const oy = H * (isMob ? 0.05 : 0.06);
-  const pt = (x: number, y: number): [number, number] => [ox + x * sx, oy + y * sy];
+  // 1. Fallen City hand-inked ruined city background
+  blitCanvasToSurface(surface, layers.bg, 0, 0, W, H, false);
 
-  // A. Tall Swept-Back Shoulder Restraint Pylons + Rear Shadow Pylon Block
-  surface.fillPolygon(
-    [
-      pt(22, 538),
-      pt(72, 446),
-      pt(132, 468),
-      pt(168, 396),
-      pt(156, 340),
-      pt(252, 376),
-      pt(328, 438),
-      pt(298, 588),
-      pt(122, 688),
-      pt(62, 638),
-    ],
-    COL_INK
-  );
-  // B. Continuous Neck, Barrel Pectoral Chest Armor, Core & Wasp Waist
-  surface.fillPolygon(
-    [
-      pt(255, 355),
-      pt(445, 395),
-      pt(432, 516),
-      pt(428, 578),
-      pt(406, 636),
-      pt(368, 672),
-      pt(328, 728),
-      pt(316, 812),
-      pt(376, 935),
-      pt(412, 960),
-      pt(78, 960),
-      pt(68, 895),
-      pt(98, 755),
-      pt(132, 615),
-      pt(208, 455),
-    ],
-    COL_INK
-  );
-  // Iconic white triangular shoulder armor plate + circular black port dot (drawn over combined shoulder/torso)
-  surface.fillPolygon(
-    [pt(156, 424), pt(236, 406), pt(216, 514), pt(176, 536), pt(162, 488)],
-    COL_PAPER
-  );
-  surface.fillCircle(...pt(192, 488), Math.max(2, 6 * sx), COL_INK);
+  // 2. Eva-01 1-to-1 Bust Silhouette
+  const evaSize = Math.round(isMob ? H * 0.42 : H * 0.88);
+  const evaX = Math.round(-0.02 * evaSize);
+  const evaY = isMob
+    ? Math.round(H * 0.44 - evaSize + 0.02 * evaSize)
+    : Math.round(H - evaSize + 0.02 * evaSize);
 
-  // 3 White Dorsal Spine / Entry-Plug Vertebrae Fins down the arched back
-  for (const [fx, fy, fw, fh] of [
-    [146, 562, 26, 44],
-    [136, 624, 28, 46],
-    [120, 688, 30, 48],
-  ] as const) {
-    surface.fillPolygon(
-      [pt(fx, fy + fh * 0.25), pt(fx + fw, fy), pt(fx + fw + 4, fy + fh * 0.75), pt(fx + 4, fy + fh)],
-      COL_PAPER
-    );
-  }
-
-  // Pectoral chest plate seams & pelvic chevron
-  surface.drawLine(...pt(268, 502), ...pt(412, 532), 2.5, COL_PAPER);
-  surface.drawLine(...pt(284, 606), ...pt(414, 594), 2.5, COL_PAPER);
-  surface.drawLine(...pt(132, 868), ...pt(212, 945), 3, COL_PAPER);
-  surface.drawLine(...pt(212, 945), ...pt(284, 892), 3, COL_PAPER);
-
-  // C. Slender Tapered Forearms, Forearm Blade Fin & Separated Hooked Berserk Claw Fingers
-  surface.fillPolygon(
-    [
-      pt(206, 520),
-      pt(264, 536),
-      pt(248, 682),
-      pt(368, 774),
-      pt(468, 832),
-      pt(504, 838),
-      pt(496, 872),
-      pt(452, 866),
-      pt(338, 808),
-      pt(208, 738),
-      pt(172, 722),
-      pt(186, 648),
-    ],
-    COL_INK
-  );
-  surface.fillPolygon(
-    [pt(318, 734), pt(442, 782), pt(518, 792), pt(512, 818), pt(428, 806), pt(306, 756)],
-    COL_INK
-  );
-  // White forearm armor blade fin stripe
-  surface.fillPolygon(
-    [pt(228, 704), pt(362, 782), pt(438, 828), pt(426, 842), pt(264, 748), pt(214, 718)],
-    COL_PAPER
-  );
-  // Separated hooked Berserk claw fingers
-  const clawStrokes: Array<Array<[number, number]>> = [
-    [[502, 794], [528, 768], [544, 752]],
-    [[514, 798], [554, 786], [576, 766], [566, 754]],
-    [[516, 808], [562, 802], [588, 782], [580, 768]],
-    [[512, 818], [556, 818], [582, 802]],
-    [[468, 838], [496, 816], [518, 804]],
-    [[496, 844], [542, 842], [568, 824], [558, 812]],
-    [[498, 854], [548, 858], [576, 844], [568, 832]],
-    [[494, 864], [542, 874], [568, 864]],
-    [[484, 870], [526, 888], [548, 882]],
-  ];
-  for (const segs of clawStrokes) {
-    for (let i = 0; i < segs.length - 1; i++) {
-      surface.drawLine(...pt(segs[i][0], segs[i][1]), ...pt(segs[i + 1][0], segs[i + 1][1]), Math.max(2, 4.2 * sx), COL_INK);
-    }
-  }
-
-  // D. Single Iconic Hyper-Elongated Forward-Swept Horn & Continuous Throat Cranium
-  const droopY = -profile.headDroopDeg * 2.0;
-  const hPt = (x: number, y: number): [number, number] => pt(x, y + droopY);
-
-  // Single forward-swept Berserk razor horn + vertical horn drip in front of snout
-  surface.fillPolygon(
-    [
-      hPt(504, 242),
-      hPt(538, 208),
-      hPt(526, 198),
-      hPt(626, 114),
-      hPt(714, 46),
-      hPt(754, 24),
-      hPt(732, 56),
-      hPt(666, 134),
-      hPt(592, 248),
-    ],
-    COL_INK
-  );
-  surface.drawLine(...hPt(514, 236), ...hPt(618, 136), 2, COL_PAPER);
-  surface.drawLine(...hPt(678, 108), ...hPt(677, 236), 2, COL_INK);
-
-  // Sleek low cranium, short brutal snout & continuous solid throat column
-  surface.fillPolygon(
-    [
-      hPt(252, 294),
-      hPt(282, 266),
-      hPt(348, 236),
-      hPt(436, 224),
-      hPt(522, 234),
-      hPt(592, 246),
-      hPt(622, 262),
-      hPt(642, 282),
-      hPt(636, 314),
-      hPt(626, 342),
-      hPt(578, 346),
-      hPt(526, 348),
-      hPt(506, 376),
-      hPt(508, 438),
-      hPt(486, 478),
-      hPt(332, 474),
-      hPt(314, 404),
-      hPt(214, 386),
-      hPt(258, 362),
-      hPt(308, 348),
-      hPt(264, 322),
-      hPt(286, 308),
-    ],
-    COL_INK
-  );
-  surface.drawLine(...hPt(226, 382), ...hPt(432, 362), 2.5, COL_PAPER);
-
-  // Gnarled upper fangs + flared viscous vertical saliva strand
-  surface.fillPolygon([hPt(528, 344), hPt(548, 344), hPt(538, 368)], COL_INK);
-  surface.fillPolygon([hPt(554, 342), hPt(584, 342), hPt(576, 382), hPt(564, 372)], COL_INK);
-  surface.fillPolygon([hPt(588, 340), hPt(612, 338), hPt(602, 376)], COL_INK);
-  surface.fillPolygon([hPt(612, 338), hPt(626, 336), hPt(622, 364)], COL_INK);
-  surface.drawLine(...hPt(576, 364), ...hPt(576, 488), 3, COL_INK);
-
-  // E. Continuous Throat Root + Gnarled Asymmetric Lower Jaw & Needle Chin Spear
-  const jawDrop = profile.jawBase * 24 + (status === 'offline' ? -18 : 6);
-  const jPt = (x: number, y: number): [number, number] => pt(x, y + droopY + jawDrop);
-
-  surface.fillPolygon(
-    [
-      jPt(336, 405),
-      jPt(498, 402),
-      jPt(506, 438),
-      jPt(526, 478),
-      jPt(548, 488),
-      jPt(568, 470),
-      jPt(584, 498),
-      jPt(608, 488),
-      jPt(624, 518),
-      jPt(658, 542),
-      jPt(688, 532),
-      jPt(706, 566),
-      jPt(758, 622),
-      jPt(710, 608),
-      jPt(696, 636),
-      jPt(674, 594),
-      jPt(608, 562),
-      jPt(532, 528),
-      jPt(484, 518),
-      jPt(444, 534),
-      jPt(412, 512),
-      jPt(342, 516),
-    ],
-    COL_INK
-  );
-  surface.drawLine(...jPt(488, 492), ...jPt(736, 608), 2, COL_PAPER);
-  // 4 signature vertical ink drips off the lower jaw into open white paper
-  surface.drawLine(...jPt(696, 624), ...jPt(695, 688), 2, COL_INK);
-  surface.drawLine(...jPt(608, 554), ...jPt(607, 784), 2.5, COL_INK);
-  surface.drawLine(...jPt(532, 522), ...jPt(531, 596), 2, COL_INK);
-  surface.drawLine(...jPt(444, 526), ...jPt(443, 632), 2, COL_INK);
-
-  // F. Glowing White Berserk Eye & Pupil on Brow Plate
-  const [eyeX, eyeY] = hPt(486, 284);
-  const eyeRx = Math.max(9, W * 0.012);
-  const eyeRy = Math.max(5, H * 0.011 * profile.eyeOpenness);
+  blitCanvasToSurface(surface, layers.evaBodyAndHead, evaX, evaY, evaSize, evaSize, true);
   if (profile.eyeBlackout < 0.5) {
-    const eyePts: Array<[number, number]> = [];
-    for (let i = 0; i < 20; i++) {
-      const a = (i / 20) * Math.PI * 2;
-      eyePts.push([eyeX + Math.cos(a) * eyeRx, eyeY + Math.sin(a) * eyeRy]);
-    }
-    surface.fillPolygon(eyePts, COL_PAPER_PURE);
-    // Pupil + tiny <= 6px red glint
-    surface.fillCircle(eyeX + 3, eyeY, Math.min(eyeRy * 0.75, 6), COL_INK);
-    surface.fillCircle(eyeX + 5, eyeY - 1, 2, COL_RED);
+    blitCanvasToSurface(surface, layers.eye, evaX, evaY, evaSize, evaSize, true);
+    blitCanvasToSurface(surface, layers.pupil, evaX, evaY, evaSize, evaSize, true);
   }
+
+  const eyeCenterNorm = hToPx(EVA_SKELETON.joints.eyeCenter, 1, EVA_SKELETON);
+  const eyeX = evaX + eyeCenterNorm[0] * evaSize;
+  const eyeY = evaY + eyeCenterNorm[1] * evaSize;
+  const eyeRx = Math.max(9, W * 0.012);
 
   // 3. Target Red Orb & Dashed Sight Line + Reticle
   const orbX = orbUv[0] * W;
@@ -782,7 +843,6 @@ function renderDashboardCompositedFrame(opts: RenderDashboardOptions): {
     }
   }
 
-  void rng;
   return {
     surface,
     evaLeftCoverage: focalInkPixels / focalTotalPixels,

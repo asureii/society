@@ -2,14 +2,14 @@
  * DROOPING CATENARY CABLE GENERATOR (src/scene/art/cables.ts)
  */
 
-import { THEME_COLORS } from '../../config/theme';
+import { THEME_COLORS } from '../../config/theme.ts';
 import {
   drawInkDot,
   drawInkStroke,
   type Canvas2DContext,
   type Point2D,
-} from './inkBrush';
-import type { PRNG } from './rng';
+} from './inkBrush.ts';
+import type { PRNG } from './rng.ts';
 
 export interface CatenaryCableOptions {
   start: Point2D;

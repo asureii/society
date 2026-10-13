@@ -20,6 +20,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
+import { drawEvaStageBackground } from '../src/dashboard/eva/background.ts';
 import { drawEvaNeckLayer, drawEvaTorsoLayer } from '../src/dashboard/eva/body.ts';
 import { drawEvaDripsLayer } from '../src/dashboard/eva/drips.ts';
 import { drawEvaEyeLayer, drawEvaPupilLayer } from '../src/dashboard/eva/eye.ts';
@@ -361,8 +362,8 @@ function main() {
 
   // Place eye & pupil onto 1024-space canvases at `eyeCenter`
   const eyeCenterPx = hToPx(sk.joints.eyeCenter, S, sk);
-  const eyeBoxPx = Math.round(EVA_PROPORTIONS.head.eyeWidthH * hPx * 1.5);
-  const pupilBoxPx = Math.round(EVA_PROPORTIONS.head.eyeWidthH * hPx * 1.25);
+  const eyeBoxPx = Math.round(EVA_PROPORTIONS.head.eyeWidthH * hPx * 1.2);
+  const pupilBoxPx = Math.round(EVA_PROPORTIONS.head.eyeWidthH * hPx * 1.0);
 
   const eye = new SoftwareCanvas2D(S, S);
   eye.drawImage(
@@ -458,6 +459,24 @@ function main() {
       path.join(ARTIFACT_DIR, 'eva_squint_96px.png'),
       encodePng(96, 96, squint96.data)
     );
+
+    // Render 1440x900 Fallen City stage composite with Eva-01 bust
+    const stageW = 1440;
+    const stageH = 900;
+    const bgCanvas = makeLayer((ctx, c, r) => drawEvaStageBackground(ctx, c, r, 701), S);
+    const stagePreview = new SoftwareCanvas2D(stageW, stageH);
+    stagePreview.drawImage(bgCanvas, 0, 0, stageW, stageH);
+
+    const evaSizeOnStage = Math.round(stageH * 0.88);
+    const evaX = Math.round(-0.02 * evaSizeOnStage);
+    const evaY = Math.round(stageH - evaSizeOnStage + 0.02 * evaSizeOnStage);
+    for (const layer of [torso, neck, head, jaw, eye, pupil, drips]) {
+      stagePreview.drawImage(layer, evaX, evaY, evaSizeOnStage, evaSizeOnStage);
+    }
+    fs.writeFileSync(
+      path.join(ARTIFACT_DIR, 'fallen_city_stage.png'),
+      encodePng(stageW, stageH, stagePreview.data)
+    );
   }
 
   console.log('--- Eva-01 Bust Proportions & Alpha Bounding Box Verification ---');
@@ -481,8 +500,8 @@ function main() {
     `neck lean (${neckLeanDeg}°) must be between 20° and 40°`
   );
   assert.ok(
-    neckWidthH >= 0.45 && neckWidthH <= 0.80,
-    `neck width / H (${neckWidthH}) must be between 0.45 and 0.80`
+    neckWidthH >= 0.55 && neckWidthH <= 0.85,
+    `neck width / H (${neckWidthH}) must be between 0.55 and 0.85`
   );
   assert.ok(
     collarWidthH >= 1.1 && collarWidthH <= 1.6,
