@@ -48,9 +48,9 @@ export const EVA_PROPORTIONS: EvaProportionsConfig = {
 
   head: {
     heightH: 1.0,
-    widthH: 1.25, // includes swept rear occipital fins
-    eyeWidthH: 0.22, // sleek angled visor slit matching reference
-    eyeHeightH: 0.06,
+    widthH: 1.05, // streamlined aerodynamic crest hugging skull
+    eyeWidthH: 0.28, // prominent predatory eye slit slicing across brow
+    eyeHeightH: 0.08,
   },
 
   horn: {
@@ -60,13 +60,13 @@ export const EVA_PROPORTIONS: EvaProportionsConfig = {
   },
 
   neck: {
-    lengthH: 1.06,
-    widthH: 0.72,
-    leanDeg: 26, // ~26° forward lean matching reference bust posture
+    lengthH: 1.15, // elongated mechanical neck
+    widthH: 0.52, // slender neck vs heavy saurian bulk
+    leanDeg: 34, // forward-curving posture
   },
 
   chest: {
-    collarWidthH: 1.35,
+    collarWidthH: 1.25,
     heightH: 0.70,
   },
 };

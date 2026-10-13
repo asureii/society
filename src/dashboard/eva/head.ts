@@ -45,9 +45,6 @@ export function drawEvaHeadLayer(
     hornBase,
     hornTip,
     crestTopTip,
-    crestNotch1,
-    crestMidTip,
-    crestNotch2,
     crestBotTip,
     browRidge,
     snoutTip,
@@ -143,97 +140,44 @@ export function drawEvaHeadLayer(
   recorder.captureStage(canvas, 0.38, 0.48, 'top-down');
 
   // ---------------------------------------------------------------------------
-  // 2. HELMET CREST & CONTINUOUS SLOPED FACE SILHOUETTE
-  // Stack of 3 swept-back diagonal plates + brow overhang + sloped snout to beak
+  // 2. UNIFIED AERODYNAMIC HELMET CREST & STEEPLY SLOPED PREDATORY FACE
+  // Streamlined cowl hugging skull + heavy brow overhang + steep downward muzzle
   // ---------------------------------------------------------------------------
   const helmetPolyH: PointH[] = [
-    // Top crest rearmost tip
+    // Aerodynamic crest fin tip - sharp swept-back point
     [crestTopTip[0], crestTopTip[1]],
-    // Curved crown arching up to peak
-    [crestTopTip[0] + 0.26, crestTopTip[1] - 0.06],
+    // Curved crown arching smoothly up to peak and horn root
+    [crestTopTip[0] + 0.18, crestTopTip[1] - 0.08],
     [headTop[0], headTop[1]],
-    [hornBase[0] - 0.06, hornBase[1] + 0.02],
-    // Brow overhang over the eye slit
+    [hornBase[0] - 0.04, hornBase[1] + 0.02],
+    // Heavy angular brow overhang plate shielding the eye slit
     [browRidge[0], browRidge[1]],
-    // Long continuous slope down-right to blunt beak chin tip
+    // Steep downward slope from brow to snout (~70° downward)
     [snoutTip[0], snoutTip[1]],
     // Upper beak tip meets jaw seam
-    [chinTip[0] - 0.04, chinTip[1] - 0.04],
+    [chinTip[0] - 0.04, chinTip[1] - 0.06],
     // Clean mechanical jaw seam line running back to hinge
-    [jawHinge[0] + 0.22, jawHinge[1] + 0.02],
+    [jawHinge[0] + 0.18, jawHinge[1] + 0.02],
     [jawHinge[0], jawHinge[1]],
     [neckTop[0], neckTop[1]],
-    // Lower cowl plate rearmost tip
-    [crestBotTip[0], crestBotTip[1]],
-    // Notch 2 between mid and lower plate
-    [crestNotch2[0], crestNotch2[1]],
-    // Middle crest plate rearmost tip
-    [crestMidTip[0], crestMidTip[1]],
-    // Notch 1 between top and mid plate
-    [crestNotch1[0], crestNotch1[1]],
+    // Smooth aerodynamic underside of helmet cowl flowing to nape
+    [crestBotTip[0] + 0.06, crestBotTip[1] + 0.02],
+    [crestTopTip[0] + 0.14, crestTopTip[1] + 0.08],
   ];
 
   fillInkSilhouetteWithFringe(ctx, polyHToPx(helmetPolyH, W, sk), rng, 2.0 * s, 3.4 * s);
 
   // ---------------------------------------------------------------------------
-  // 3. LAYERED CREST PLATE SEAMS (crisp diagonal negative seams)
+  // 3. LAYERED CREST PLATE SEAMS (subtle diagonal aerodynamic seams inside cowl)
   // ---------------------------------------------------------------------------
   // Top crest dividing seam
   carveNegativeSeam(
     ctx,
     polyHToPx(
       [
-        [crestNotch1[0], crestNotch1[1]],
-        [crestNotch1[0] + 0.24, crestNotch1[1] - 0.02],
-        [headTop[0] + 0.06, headTop[1] + 0.14],
-      ],
-      W,
-      sk
-    ),
-    rng,
-    { baseWidth: 2.4 * s, wobbleScale: 0.25 }
-  );
-
-  // Middle crest dividing seam
-  carveNegativeSeam(
-    ctx,
-    polyHToPx(
-      [
-        [crestNotch2[0], crestNotch2[1]],
-        [crestNotch2[0] + 0.26, crestNotch2[1] + 0.02],
-        [sideVent[0] - 0.10, sideVent[1] - 0.04],
-      ],
-      W,
-      sk
-    ),
-    rng,
-    { baseWidth: 2.2 * s, wobbleScale: 0.25 }
-  );
-
-  // Brow plate overhang seam line
-  carveNegativeSeam(
-    ctx,
-    polyHToPx(
-      [
-        [browRidge[0] + 0.02, browRidge[1] + 0.02],
-        [hornBase[0] - 0.04, hornBase[1] + 0.10],
-        [sideVent[0] + 0.06, sideVent[1] - 0.08],
-      ],
-      W,
-      sk
-    ),
-    rng,
-    { baseWidth: 2.0 * s, wobbleScale: 0.25 }
-  );
-
-  // Closed jaw plate seam (clean diagonal mechanical seam)
-  carveNegativeSeam(
-    ctx,
-    polyHToPx(
-      [
-        [jawHinge[0], jawHinge[1]],
-        [jawHinge[0] + 0.22, jawHinge[1] + 0.02],
-        [chinTip[0] - 0.04, chinTip[1] - 0.04],
+        [crestTopTip[0] + 0.06, crestTopTip[1] + 0.04],
+        [crestTopTip[0] + 0.20, crestTopTip[1] - 0.02],
+        [headTop[0] + 0.04, headTop[1] + 0.10],
       ],
       W,
       sk
@@ -242,97 +186,162 @@ export function drawEvaHeadLayer(
     { baseWidth: 2.2 * s, wobbleScale: 0.2 }
   );
 
+  // Middle crest dividing seam
+  carveNegativeSeam(
+    ctx,
+    polyHToPx(
+      [
+        [crestBotTip[0] + 0.04, crestBotTip[1] - 0.02],
+        [crestBotTip[0] + 0.18, crestBotTip[1] - 0.06],
+        [sideVent[0] - 0.04, sideVent[1] - 0.04],
+      ],
+      W,
+      sk
+    ),
+    rng,
+    { baseWidth: 2.0 * s, wobbleScale: 0.2 }
+  );
+
+  // Heavy brow armor seam line (routed high along forehead, keeping eye socket dark)
+  carveNegativeSeam(
+    ctx,
+    polyHToPx(
+      [
+        [browRidge[0] - 0.02, browRidge[1] - 0.08],
+        [hornBase[0] - 0.04, hornBase[1] + 0.04],
+        [sideVent[0] + 0.02, sideVent[1] - 0.10],
+      ],
+      W,
+      sk
+    ),
+    rng,
+    { baseWidth: 2.0 * s, wobbleScale: 0.2 }
+  );
+
+  // Closed jaw plate seam (clean diagonal mechanical seam)
+  carveNegativeSeam(
+    ctx,
+    polyHToPx(
+      [
+        [jawHinge[0], jawHinge[1]],
+        [jawHinge[0] + 0.18, jawHinge[1] + 0.02],
+        [chinTip[0] - 0.04, chinTip[1] - 0.06],
+      ],
+      W,
+      sk
+    ),
+    rng,
+    { baseWidth: 2.2 * s, wobbleScale: 0.2 }
+  );
+
+  // Distinct horizontal line cutouts on the snout armor
+  carveNegativeSeam(
+    ctx,
+    polyHToPx(
+      [
+        [snoutTip[0] - 0.12, snoutTip[1] - 0.04],
+        [snoutTip[0] + 0.01, snoutTip[1] - 0.02],
+      ],
+      W,
+      sk
+    ),
+    rng,
+    { baseWidth: 2.0 * s, wobbleScale: 0.15 }
+  );
+  carveNegativeSeam(
+    ctx,
+    polyHToPx(
+      [
+        [snoutTip[0] - 0.08, snoutTip[1] + 0.06],
+        [snoutTip[0] + 0.02, snoutTip[1] + 0.08],
+      ],
+      W,
+      sk
+    ),
+    rng,
+    { baseWidth: 1.8 * s, wobbleScale: 0.15 }
+  );
+
   // ---------------------------------------------------------------------------
-  // 4. RED EYE SLASH MARKS ON BROW PLATE
-  // 2 short parallel red slashes directly above the slanted eye slit
+  // 4. BOLD RED EYE SLASH MARKS ON BROW PLATE
+  // 2 sharp parallel red slashes directly above the slanted eye slit
   // ---------------------------------------------------------------------------
   const slash1Px = polyHToPx(
     [
-      [joints.eyeCenter[0] - 0.04, joints.eyeCenter[1] - 0.05],
-      [joints.eyeCenter[0] + 0.02, joints.eyeCenter[1] - 0.03],
+      [joints.eyeCenter[0] - 0.03, joints.eyeCenter[1] - 0.07],
+      [joints.eyeCenter[0] + 0.03, joints.eyeCenter[1] - 0.04],
     ],
     W,
     sk
   );
   const slash2Px = polyHToPx(
     [
-      [joints.eyeCenter[0] + 0.04, joints.eyeCenter[1] - 0.06],
-      [joints.eyeCenter[0] + 0.10, joints.eyeCenter[1] - 0.04],
+      [joints.eyeCenter[0] + 0.05, joints.eyeCenter[1] - 0.08],
+      [joints.eyeCenter[0] + 0.11, joints.eyeCenter[1] - 0.05],
     ],
     W,
     sk
   );
   drawInkStroke(ctx, slash1Px, rng, {
-    baseWidth: 2.8 * s,
+    baseWidth: 3.0 * s,
     color: THEME_COLORS.red,
-    wobbleScale: 0.15,
+    wobbleScale: 0.1,
+    doubleChance: 0,
+    breakChance: 0,
+    imperfectJoin: false,
   });
   drawInkStroke(ctx, slash2Px, rng, {
-    baseWidth: 2.8 * s,
+    baseWidth: 3.0 * s,
     color: THEME_COLORS.red,
-    wobbleScale: 0.15,
+    wobbleScale: 0.1,
+    doubleChance: 0,
+    breakChance: 0,
+    imperfectJoin: false,
   });
 
   // ---------------------------------------------------------------------------
-  // 5. SIDE CAPSULE VENT (red border + white inset oval + inner slit)
+  // 5. SUBTLE MECHANICAL SIDE VENT (compact dark intake slot, NOT an eye!)
+  // Small recessed intake behind the cheek, no white oval
   // ---------------------------------------------------------------------------
   const ventCenterPx = hToPx(sideVent, W, sk);
-  const ventW = 0.18 * sk.headUnitPx;
-  const ventH = 0.075 * sk.headUnitPx;
+  const ventW = 0.09 * sk.headUnitPx;
+  const ventH = 0.028 * sk.headUnitPx;
   const vRx = ventW * 0.5;
   const vRy = ventH * 0.5;
 
-  // Outer red capsule border
-  const ventPolyPx: Point2D[] = [];
-  const vSteps = 20;
-  for (let i = 0; i < vSteps; i++) {
-    const a = (i / vSteps) * Math.PI * 2;
-    const cornerBoost = Math.pow(Math.abs(Math.cos(a)), 0.75) * Math.sign(Math.cos(a));
-    ventPolyPx.push([
-      ventCenterPx[0] + cornerBoost * vRx,
-      ventCenterPx[1] + Math.sin(a) * vRy,
-    ]);
-  }
-  fillRoughenedPolygon(ctx, ventPolyPx, rng, THEME_COLORS.red, 0.6 * s);
+  // Thin red outer trim border
+  const ventPolyPx: Point2D[] = [
+    [ventCenterPx[0] - vRx, ventCenterPx[1] - vRy],
+    [ventCenterPx[0] + vRx, ventCenterPx[1] - vRy],
+    [ventCenterPx[0] + vRx, ventCenterPx[1] + vRy],
+    [ventCenterPx[0] - vRx, ventCenterPx[1] + vRy],
+  ];
+  fillRoughenedPolygon(ctx, ventPolyPx, rng, THEME_COLORS.red, 0.4 * s);
 
-  // Inset white oval
-  const insetPolyPx: Point2D[] = [];
-  for (let i = 0; i < vSteps; i++) {
-    const a = (i / vSteps) * Math.PI * 2;
-    const cornerBoost = Math.pow(Math.abs(Math.cos(a)), 0.75) * Math.sign(Math.cos(a));
-    insetPolyPx.push([
-      ventCenterPx[0] + cornerBoost * (vRx * 0.68),
-      ventCenterPx[1] + Math.sin(a) * (vRy * 0.60),
-    ]);
-  }
-  fillRoughenedPolygon(ctx, insetPolyPx, rng, THEME_COLORS.paperPure, 0.5 * s);
+  // Inset dark ink core slot
+  const insetVentPx: Point2D[] = [
+    [ventCenterPx[0] - vRx * 0.75, ventCenterPx[1] - vRy * 0.60],
+    [ventCenterPx[0] + vRx * 0.75, ventCenterPx[1] - vRy * 0.60],
+    [ventCenterPx[0] + vRx * 0.75, ventCenterPx[1] + vRy * 0.60],
+    [ventCenterPx[0] - vRx * 0.75, ventCenterPx[1] + vRy * 0.60],
+  ];
+  fillRoughenedPolygon(ctx, insetVentPx, rng, THEME_COLORS.ink, 0.3 * s);
 
-  // Inner red core slit
-  drawInkStroke(
-    ctx,
-    [
-      [ventCenterPx[0] - vRx * 0.35, ventCenterPx[1]],
-      [ventCenterPx[0] + vRx * 0.35, ventCenterPx[1]],
-    ],
-    rng,
-    { baseWidth: 2.2 * s, color: THEME_COLORS.red, wobbleScale: 0.1 }
-  );
-
-  // 2 circular vent ports behind the side vent
-  const port1Px = hToPx([sideVent[0] - 0.06, sideVent[1] - 0.08], W, sk);
-  const port2Px = hToPx([sideVent[0] + 0.01, sideVent[1] - 0.07], W, sk);
-  drawInkDot(ctx, port1Px[0], port1Px[1], 4.2 * s, rng, THEME_COLORS.paperPure);
-  drawInkDot(ctx, port1Px[0], port1Px[1], 1.8 * s, rng, THEME_COLORS.ink);
-  drawInkDot(ctx, port2Px[0], port2Px[1], 3.8 * s, rng, THEME_COLORS.paperPure);
-  drawInkDot(ctx, port2Px[0], port2Px[1], 1.6 * s, rng, THEME_COLORS.ink);
+  // 2 small circular intake ports tucked above the vent
+  const port1Px = hToPx([sideVent[0] - 0.04, sideVent[1] - 0.06], W, sk);
+  const port2Px = hToPx([sideVent[0] + 0.02, sideVent[1] - 0.05], W, sk);
+  drawInkDot(ctx, port1Px[0], port1Px[1], 3.0 * s, rng, THEME_COLORS.paperPure);
+  drawInkDot(ctx, port1Px[0], port1Px[1], 1.4 * s, rng, THEME_COLORS.ink);
+  drawInkDot(ctx, port2Px[0], port2Px[1], 2.8 * s, rng, THEME_COLORS.paperPure);
+  drawInkDot(ctx, port2Px[0], port2Px[1], 1.2 * s, rng, THEME_COLORS.ink);
 
   // ---------------------------------------------------------------------------
   // 6. CHEEK HONEYCOMB HEXAGONAL CELL GRID (INTERLOCKING 7-CELL ROSETTE)
-  // Positioned cleanly inside the cheek panel (below eye/vent, above jaw seam)
+  // Positioned cleanly inside the cheek panel (below eye, in front of vent)
   // ---------------------------------------------------------------------------
   const cheekCenterH: PointH = [sideVent[0] + 0.16, sideVent[1] + 0.06];
   const cheekCenterPx = hToPx(cheekCenterH, W, sk);
-  const hexR = 0.024 * sk.headUnitPx;
+  const hexR = 0.020 * sk.headUnitPx;
   const hexDist = Math.sqrt(3) * hexR;
   const cheekTilt = -0.22; // align slightly with cheek plate slant
 
@@ -379,7 +388,7 @@ export function drawEvaHeadLayer(
           [v0, v1],
           rng,
           {
-            baseWidth: 1.6 * s,
+            baseWidth: 1.5 * s,
             color: THEME_COLORS.paperPure,
             wobbleScale: 0.05,
             taperScale: 0.0,
@@ -391,7 +400,7 @@ export function drawEvaHeadLayer(
       }
     }
     // Subtle central cell glint
-    drawInkDot(ctx, hc[0], hc[1], 1.6 * s, rng, THEME_COLORS.paperPure);
+    drawInkDot(ctx, hc[0], hc[1], 1.4 * s, rng, THEME_COLORS.paperPure);
   }
 
   // Mechanical accent seam separating cheek from snout
@@ -399,9 +408,9 @@ export function drawEvaHeadLayer(
     ctx,
     polyHToPx(
       [
-        [sideVent[0] + 0.10, sideVent[1] - 0.04],
-        [cheekCenterH[0] + 0.08, cheekCenterH[1] - 0.02],
-        [snoutTip[0] - 0.06, snoutTip[1] + 0.06],
+        [sideVent[0] + 0.08, sideVent[1] - 0.04],
+        [cheekCenterH[0] + 0.06, cheekCenterH[1] - 0.02],
+        [snoutTip[0] - 0.06, snoutTip[1] + 0.04],
       ],
       W,
       sk

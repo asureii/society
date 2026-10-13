@@ -39,22 +39,22 @@ export function drawEvaJawLayer(
 
   // ---------------------------------------------------------------------------
   // 1. CLOSED LOWER MANDIBLE PLATE SILHOUETTE
-  // Upper rim meets upper snout; underside is a smooth concave curve to throat
+  // Upper rim meets steep snout; underside is a smooth concave curve to throat
   // ---------------------------------------------------------------------------
   const jawPolyH: PointH[] = [
     // Hinge root at lower cheek
     [jawHinge[0], jawHinge[1]],
     // Upper jaw-seam rim fitting flush against upper snout
-    [jawHinge[0] + 0.22, jawHinge[1] + 0.02],
-    [chinTip[0] - 0.04, chinTip[1] - 0.04],
-    // Blunt beak tip
+    [jawHinge[0] + 0.18, jawHinge[1] + 0.02],
+    [chinTip[0] - 0.04, chinTip[1] - 0.06],
+    // Sharp pointed chin tip
     [chinTip[0], chinTip[1]],
     // Chin cap lower edge
-    [chinTip[0] - 0.08, chinTip[1] + 0.06],
+    [chinTip[0] - 0.06, chinTip[1] + 0.04],
     // Underside of jaw: smooth concave sweep back to neck/throat junction
-    [chinTip[0] - 0.20, chinTip[1] + 0.04],
-    [chinTip[0] - 0.34, chinTip[1] + 0.01],
-    [jawThroatJunction[0] + 0.08, jawThroatJunction[1] - 0.02],
+    [chinTip[0] - 0.14, chinTip[1] + 0.02],
+    [chinTip[0] - 0.22, chinTip[1] - 0.04],
+    [jawThroatJunction[0] + 0.06, jawThroatJunction[1] - 0.02],
     [jawThroatJunction[0], jawThroatJunction[1]],
     // Rear mandible contour ascending back to hinge
     [jawHinge[0] + 0.02, jawHinge[1] + 0.08],
@@ -63,13 +63,13 @@ export function drawEvaJawLayer(
   fillInkSilhouetteWithFringe(ctx, polyHToPx(jawPolyH, W, sk), rng, 1.8 * s, 3.2 * s);
 
   // ---------------------------------------------------------------------------
-  // 2. ANGULAR RED CHIN CAP AT BEAK TIP
+  // 2. ANGULAR RED CHIN CAP AT SHARP BEAK TIP
   // ---------------------------------------------------------------------------
   const chinCapPolyH: PointH[] = [
-    [chinTip[0] - 0.10, chinTip[1] - 0.08],
+    [chinTip[0] - 0.05, chinTip[1] - 0.08],
     [chinTip[0], chinTip[1]],
-    [chinTip[0] - 0.08, chinTip[1] + 0.06],
-    [chinTip[0] - 0.14, chinTip[1] + 0.01],
+    [chinTip[0] - 0.06, chinTip[1] + 0.04],
+    [chinTip[0] - 0.10, chinTip[1] - 0.02],
   ];
   fillRoughenedPolygon(ctx, polyHToPx(chinCapPolyH, W, sk), rng, THEME_COLORS.red, 0.6 * s);
 
@@ -78,15 +78,33 @@ export function drawEvaJawLayer(
     ctx,
     polyHToPx(
       [
-        [chinTip[0] - 0.10, chinTip[1] - 0.08],
-        [chinTip[0] - 0.14, chinTip[1] + 0.01],
-        [chinTip[0] - 0.08, chinTip[1] + 0.06],
+        [chinTip[0] - 0.05, chinTip[1] - 0.08],
+        [chinTip[0] - 0.10, chinTip[1] - 0.02],
+        [chinTip[0] - 0.06, chinTip[1] + 0.04],
       ],
       W,
       sk
     ),
     rng,
     { baseWidth: 2.2 * s, wobbleScale: 0.2 }
+  );
+
+  // ---------------------------------------------------------------------------
+  // 3. HORIZONTAL LINE CUTOUTS ALONG JAW PLATE (matching reference mech cutouts)
+  // ---------------------------------------------------------------------------
+  carveNegativeSeam(
+    ctx,
+    polyHToPx(
+      [
+        [jawHinge[0] + 0.06, jawHinge[1] + 0.06],
+        [jawHinge[0] + 0.16, jawHinge[1] + 0.08],
+        [chinTip[0] - 0.12, chinTip[1] - 0.04],
+      ],
+      W,
+      sk
+    ),
+    rng,
+    { baseWidth: 2.0 * s, wobbleScale: 0.15 }
   );
 
   recorder.captureStage(canvas, 0.80, 0.92, 'left-right');

@@ -361,8 +361,8 @@ function main() {
 
   // Place eye & pupil onto 1024-space canvases at `eyeCenter`
   const eyeCenterPx = hToPx(sk.joints.eyeCenter, S, sk);
-  const eyeBoxPx = Math.round(EVA_PROPORTIONS.head.eyeWidthH * hPx * 1.2);
-  const pupilBoxPx = Math.round(EVA_PROPORTIONS.head.eyeWidthH * hPx * 1.0);
+  const eyeBoxPx = Math.round(EVA_PROPORTIONS.head.eyeWidthH * hPx * 1.5);
+  const pupilBoxPx = Math.round(EVA_PROPORTIONS.head.eyeWidthH * hPx * 1.25);
 
   const eye = new SoftwareCanvas2D(S, S);
   eye.drawImage(
@@ -481,8 +481,8 @@ function main() {
     `neck lean (${neckLeanDeg}°) must be between 20° and 40°`
   );
   assert.ok(
-    neckWidthH >= 0.55 && neckWidthH <= 0.85,
-    `neck width / H (${neckWidthH}) must be between 0.55 and 0.85`
+    neckWidthH >= 0.45 && neckWidthH <= 0.80,
+    `neck width / H (${neckWidthH}) must be between 0.45 and 0.80`
   );
   assert.ok(
     collarWidthH >= 1.1 && collarWidthH <= 1.6,
