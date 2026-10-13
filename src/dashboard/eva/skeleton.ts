@@ -39,13 +39,18 @@ export interface EvaSkeletonH {
     headCenter: PointH;
     browRidge: PointH;
     snoutTip: PointH;
+    chinTip: PointH;
     eyeCenter: PointH;
     cheekPod: PointH;
-    occipitalFinTop: PointH;
-    occipitalFinMid: PointH;
-    occipitalFinBot: PointH;
+    sideVent: PointH;
+    crestTopTip: PointH;
+    crestMidTip: PointH;
+    crestBotTip: PointH;
+    crestNotch1: PointH;
+    crestNotch2: PointH;
     jawHinge: PointH;
     jawTip: PointH;
+    jawThroatJunction: PointH;
     hornBase: PointH;
     hornTip: PointH;
     neckTop: PointH;
@@ -75,47 +80,56 @@ export function buildEvaSkeleton(
   const canvasSizeH = p.canvasSizePx / headUnitPx;
   const visibleFigureHeightH = p.visibleHeads;
 
-  // Head center and key landmarks in H units (H = 341px on 1024 canvas)
-  const headTopY = p.topMarginHeads + 0.32; // crown top
+  // Head center and key landmarks in H units (H = 336px on 1024 canvas)
+  const headTopY = p.topMarginHeads + 0.30;
   const headCenterX = 1.35;
-  const headCenterY = headTopY + 0.46;
+  const headCenterY = headTopY + 0.44;
 
   const headBoxH = {
-    xMinH: headCenterX - 0.75, // rear fin tips
-    xMaxH: headCenterX + 0.55, // snout tip
+    xMinH: headCenterX - 0.86, // rear crest tips
+    xMaxH: headCenterX + 0.66, // chin tip
     yMinH: headTopY,
     yMaxH: headTopY + p.head.heightH,
     widthH: p.head.widthH,
     heightH: p.head.heightH,
   };
 
-  const headTop: PointH = [headCenterX - 0.05, headTopY];
+  const headTop: PointH = [headCenterX - 0.10, headTopY - 0.02];
   const headCenter: PointH = [headCenterX, headCenterY];
 
-  // Horn: rooted at front forehead/brow, points FORWARD-UP at 55° to top-right
-  const hornBase: PointH = [headCenterX + 0.24, headTopY + 0.14];
+  // Horn: thick armored base directly above the eye, sweeping up-forward at 56°
+  const hornBase: PointH = [headCenterX + 0.20, headTopY + 0.18];
   const hornRad = (p.horn.angleAboveHorizontalDeg * Math.PI) / 180;
   const hornTip: PointH = [
     hornBase[0] + Math.cos(hornRad) * p.horn.lengthH,
     hornBase[1] - Math.sin(hornRad) * p.horn.lengthH,
   ];
 
-  // Brow visor ridge and snout tip
-  const browRidge: PointH = [headCenterX + 0.30, headTopY + 0.26];
-  const eyeCenter: PointH = [headCenterX + 0.18, headTopY + 0.32];
-  const snoutTip: PointH = [headCenterX + 0.48, headTopY + 0.46];
+  // Brow overhang and slanted visor slit eye
+  const browRidge: PointH = [headCenterX + 0.26, headTopY + 0.26];
+  const eyeCenter: PointH = [headCenterX + 0.15, headTopY + 0.31];
 
-  // Cylindrical cheek intake pod & swept-back rear occipital cowl fins
-  const cheekPod: PointH = [headCenterX - 0.08, headTopY + 0.46];
-  const occipitalFinTop: PointH = [headCenterX - 0.65, headTopY + 0.14];
-  const occipitalFinMid: PointH = [headCenterX - 0.72, headTopY + 0.28];
-  const occipitalFinBot: PointH = [headCenterX - 0.68, headTopY + 0.42];
+  // Long continuous sloped face from brow to blunt beak-like chin tip
+  const snoutTip: PointH = [headCenterX + 0.44, headTopY + 0.44];
+  const chinTip: PointH = [headCenterX + 0.64, headTopY + 0.66];
 
-  // Jaw hinge and angled chin guard matching reference
-  const jawHinge: PointH = [headCenterX - 0.06, headTopY + 0.50];
-  const jawTip: PointH = [headCenterX + 0.46, headTopY + 0.74];
+  // Stack of 3 swept-back diagonal helmet crest plates
+  const crestTopTip: PointH = [headCenterX - 0.76, headTopY + 0.06];
+  const crestNotch1: PointH = [headCenterX - 0.46, headTopY + 0.16];
+  const crestMidTip: PointH = [headCenterX - 0.84, headTopY + 0.24];
+  const crestNotch2: PointH = [headCenterX - 0.52, headTopY + 0.33];
+  const crestBotTip: PointH = [headCenterX - 0.78, headTopY + 0.42];
 
-  // Muscular forward-leaning neck (~28° from vertical)
+  // Side vent and cheek landmarks
+  const sideVent: PointH = [headCenterX - 0.02, headTopY + 0.40];
+  const cheekPod: PointH = [headCenterX - 0.02, headTopY + 0.40];
+  const jawHinge: PointH = [headCenterX - 0.05, headTopY + 0.46];
+
+  // Closed jaw: lower mandible meets upper snout, underside curves in smooth concave sweep
+  const jawTip: PointH = [chinTip[0], chinTip[1]];
+  const jawThroatJunction: PointH = [headCenterX + 0.08, headTopY + 0.60];
+
+  // Muscular neck leaning forward (~26° from vertical)
   const neckTop: PointH = [headCenterX - 0.08, headTopY + 0.52];
   const neckRad = (p.neck.leanDeg * Math.PI) / 180;
   const sinNeck = Math.sin(neckRad);
@@ -126,12 +140,12 @@ export function buildEvaSkeleton(
     neckTop[1] + cosNeck * p.neck.lengthH,
   ];
 
-  // Faceted throat armor in front vs muscular nape at back
-  const throatTop: PointH = [headCenterX + 0.18, headTopY + 0.60];
-  const throatBot: PointH = [neckBase[0] + 0.36, neckBase[1] + 0.02];
+  // Bright curved chest plate & dark neck mesh
+  const throatTop: PointH = [headCenterX + 0.14, headTopY + 0.64];
+  const throatBot: PointH = [neckBase[0] + 0.44, neckBase[1] + 0.06];
 
-  const napeTop: PointH = [headCenterX - 0.36, headTopY + 0.44];
-  const napeBot: PointH = [neckBase[0] - 0.22, neckBase[1] - 0.04];
+  const napeTop: PointH = [headCenterX - 0.36, headTopY + 0.46];
+  const napeBot: PointH = [neckBase[0] - 0.20, neckBase[1] - 0.02];
 
   // Upper chest / collar
   const collarCenter: PointH = [neckBase[0] + 0.08, neckBase[1] + 0.10];
@@ -147,13 +161,18 @@ export function buildEvaSkeleton(
       headCenter,
       browRidge,
       snoutTip,
+      chinTip,
       eyeCenter,
       cheekPod,
-      occipitalFinTop,
-      occipitalFinMid,
-      occipitalFinBot,
+      sideVent,
+      crestTopTip,
+      crestMidTip,
+      crestBotTip,
+      crestNotch1,
+      crestNotch2,
       jawHinge,
       jawTip,
+      jawThroatJunction,
       hornBase,
       hornTip,
       neckTop,

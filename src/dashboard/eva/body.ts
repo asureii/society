@@ -1,7 +1,12 @@
-import type { Canvas2DContext } from '../../scene/art/inkBrush.ts';
+import { THEME_COLORS } from '../../config/theme.ts';
+import {
+  drawInkDot,
+  drawInkStroke,
+  fillRoughenedPolygon,
+  type Canvas2DContext,
+} from '../../scene/art/inkBrush.ts';
 import { createRng } from '../../scene/art/rng.ts';
 import {
-  carveCrossContourEdgeHatch,
   carveNegativeSeam,
   fillInkSilhouetteWithFringe,
   type AnyCanvas,
@@ -10,12 +15,12 @@ import {
 import { EVA_SKELETON, hToPx, polyHToPx, type PointH } from './skeleton.ts';
 
 /**
- * 1. MUSCULAR NECK & SEGMENTED FACETED THROAT ARMOR (`neck`)
- * Matches the official Eva-01 bust reference artwork:
- * - Muscular neck leaning forward at ~42°
- * - Segmented faceted throat plates (the orange neck armor in reference) with crisp
- *   white negative-space seam lines
- * - Dorsal nape vertebrae contour connecting head to collar
+ * 1. MUSCULAR NECK, DARK MESH & BRIGHT CURVED CHEST PLATE (`neck`)
+ * Matches official bust reference artwork translated into dashboard palette:
+ * - Dark fine-dot mesh texture in the throat recess between jaw and chest plate
+ * - Bright paper-white curved chest plate (orange plate in ref) with heavy black outlines
+ * - 2-3 parallel black groove lines following the smooth convex sweep of the plate
+ * - Segmented cervical vertebrae plates along the dorsal nape
  */
 export function drawEvaNeckLayer(
   ctx: Canvas2DContext,
@@ -32,108 +37,194 @@ export function drawEvaNeckLayer(
   ctx.clearRect(0, 0, W, H);
 
   const { joints } = sk;
-  const { neckTop, neckBase, throatTop, throatBot, napeTop, napeBot } = joints;
+  const { neckTop, neckBase, throatTop, throatBot, napeTop, napeBot, jawThroatJunction } = joints;
 
-  // 1. Muscular Neck Silhouette
+  // ---------------------------------------------------------------------------
+  // A. MUSCULAR NECK SILHOUETTE (solid black ink base)
+  // ---------------------------------------------------------------------------
   const neckPolyH: PointH[] = [
-    // Throat top connection under jaw
+    // Throat connection under jaw
+    [jawThroatJunction[0], jawThroatJunction[1]],
     [throatTop[0], throatTop[1]],
-    [throatTop[0] + 0.10, throatTop[1] + 0.16],
-    // Front throat contour (the orange faceted plates)
-    [throatBot[0] + 0.08, throatBot[1] - 0.16],
+    // Bold forward convex arch for muscular chest presence
+    [throatTop[0] + 0.20, throatTop[1] + 0.10],
+    [throatTop[0] + 0.26, throatTop[1] + 0.22],
+    [throatBot[0] + 0.10, throatBot[1] - 0.14],
     [throatBot[0], throatBot[1]],
     // Collar connection at base
-    [neckBase[0] + 0.08, neckBase[1] + 0.04],
+    [neckBase[0] + 0.10, neckBase[1] + 0.04],
     [napeBot[0], napeBot[1]],
-    // Dorsal nape contour ascending to occipital cowl
-    [napeBot[0] - 0.04, napeBot[1] - 0.18],
+    // Stepped dorsal vertebrae ascending to helmet cowl
+    [napeBot[0] - 0.06, napeBot[1] - 0.16],
+    [napeTop[0] - 0.04, napeTop[1] + 0.10],
     [napeTop[0], napeTop[1]],
-    [neckTop[0] - 0.12, neckTop[1]],
+    [neckTop[0] - 0.08, neckTop[1]],
   ];
 
-  fillInkSilhouetteWithFringe(ctx, polyHToPx(neckPolyH, W, sk), rng, 2.6 * s, 4.4 * s);
+  fillInkSilhouetteWithFringe(ctx, polyHToPx(neckPolyH, W, sk), rng, 2.2 * s, 3.8 * s);
 
-  // 2. Segmented Faceted Throat Armor Plates (the iconic orange chest/throat armor in reference)
-  // Outer faceted plate boundaries
-  const throatSeamOuterH: PointH[] = [
-    [throatTop[0] - 0.02, throatTop[1] + 0.04],
-    [throatTop[0] + 0.08, throatTop[1] + 0.18],
-    [throatBot[0] + 0.06, throatBot[1] - 0.16],
-    [throatBot[0] - 0.02, throatBot[1] - 0.02],
-    [neckBase[0] + 0.10, neckBase[1] - 0.02],
-    [throatTop[0] - 0.14, throatTop[1] + 0.22],
-    [throatTop[0] - 0.02, throatTop[1] + 0.04],
-  ];
-  carveNegativeSeam(ctx, polyHToPx(throatSeamOuterH, W, sk), rng, {
-    baseWidth: 2.8 * s,
-    wobbleScale: 0.35,
-  });
+  // ---------------------------------------------------------------------------
+  // B. DARK MESH / FINE-DOT STIPPLE IN THROAT RECESS
+  // Between the jaw underside and the bright chest plate
+  // ---------------------------------------------------------------------------
+  const meshX0 = Math.round(hToPx([neckTop[0] - 0.08, 0], W, sk)[0]);
+  const meshX1 = Math.round(hToPx([throatTop[0] + 0.06, 0], W, sk)[0]);
+  const meshY0 = Math.round(hToPx([0, neckTop[1] + 0.04], W, sk)[1]);
+  const meshY1 = Math.round(hToPx([0, throatTop[1] + 0.14], W, sk)[1]);
+  const dotStep = Math.max(5, Math.round(5.8 * s));
 
-  // Vertical and horizontal faceted facet dividing seams
-  const facetDividersH: PointH[][] = [
-    // Central vertical dividing rib
-    [
-      [throatTop[0] + 0.04, throatTop[1] + 0.12],
-      [throatBot[0] + 0.02, throatBot[1] - 0.08],
-    ],
-    // Upper horizontal facet cut
-    [
-      [throatTop[0] - 0.08, throatTop[1] + 0.18],
-      [throatTop[0] + 0.06, throatTop[1] + 0.14],
-    ],
-    // Mid horizontal facet cut
-    [
-      [throatBot[0] - 0.10, throatBot[1] - 0.20],
-      [throatBot[0] + 0.04, throatBot[1] - 0.16],
-    ],
-  ];
-  for (const fd of facetDividersH) {
-    carveNegativeSeam(ctx, polyHToPx(fd, W, sk), rng, {
-      baseWidth: 2.2 * s,
-      wobbleScale: 0.3,
-    });
+  for (let py = meshY0; py <= meshY1; py += dotStep) {
+    const rowOffset = ((py / dotStep) % 2) * (dotStep * 0.5);
+    for (let px = meshX0 + rowOffset; px <= meshX1; px += dotStep) {
+      // Check if point falls within the throat recess polygon
+      const u = (px / W) * sk.canvasSizeH;
+      const v = (py / H) * sk.canvasSizeH;
+      if (
+        u >= neckTop[0] - 0.08 &&
+        u <= throatTop[0] + 0.04 &&
+        v >= neckTop[1] + 0.04 &&
+        v <= throatTop[1] + 0.12
+      ) {
+        drawInkDot(ctx, px, py, 1.4 * s, rng, THEME_COLORS.paperPure);
+      }
+    }
   }
 
-  // 3. Dorsal Nape Vertebrae Seams (connecting to head cowl)
+  // ---------------------------------------------------------------------------
+  // C. BRIGHT WHITE CURVED CHEST PLATE (Orange plate in ref -> Paper White)
+  // Bold plate with heavy black outline and parallel black groove lines
+  // ---------------------------------------------------------------------------
+  const chestPlatePolyH: PointH[] = [
+    // Top inner corner under throat mesh
+    [throatTop[0] - 0.04, throatTop[1] + 0.04],
+    // Upper convex curve bulging forward
+    [throatTop[0] + 0.18, throatTop[1] + 0.10],
+    [throatTop[0] + 0.24, throatTop[1] + 0.22],
+    [throatBot[0] + 0.08, throatBot[1] - 0.14],
+    // Lower front tip
+    [throatBot[0] - 0.02, throatBot[1] - 0.02],
+    // Inner contour along collar
+    [neckBase[0] + 0.18, neckBase[1] - 0.04],
+    [neckBase[0] + 0.06, neckBase[1] - 0.18],
+    [throatTop[0] - 0.12, throatTop[1] + 0.18],
+  ];
+
+  // Fill plate with bright paper pure (#FAFAF8)
+  fillRoughenedPolygon(
+    ctx,
+    polyHToPx(chestPlatePolyH, W, sk),
+    rng,
+    THEME_COLORS.paperPure,
+    1.0 * s
+  );
+
+  // Heavy black outline surrounding the bright chest plate
+  const chestPlatePx = polyHToPx(chestPlatePolyH, W, sk);
+  drawInkStroke(ctx, [...chestPlatePx, chestPlatePx[0]], rng, {
+    baseWidth: 3.2 * s,
+    color: THEME_COLORS.ink,
+    wobbleScale: 0.25,
+  });
+
+  // ---------------------------------------------------------------------------
+  // D. PARALLEL BLACK GROOVE LINES FOLLOWING THE CURVE OF THE CHEST PLATE
+  // ---------------------------------------------------------------------------
+  const groove1H: PointH[] = [
+    [throatTop[0] + 0.12, throatTop[1] + 0.08],
+    [throatTop[0] + 0.16, throatTop[1] + 0.18],
+    [throatBot[0] + 0.02, throatBot[1] - 0.16],
+    [throatBot[0] - 0.04, throatBot[1] - 0.06],
+  ];
+  const groove2H: PointH[] = [
+    [throatTop[0] + 0.04, throatTop[1] + 0.12],
+    [throatTop[0] + 0.08, throatTop[1] + 0.22],
+    [throatBot[0] - 0.04, throatBot[1] - 0.14],
+    [throatBot[0] - 0.08, throatBot[1] - 0.06],
+  ];
+  const groove3H: PointH[] = [
+    [throatTop[0] - 0.04, throatTop[1] + 0.16],
+    [throatTop[0], throatTop[1] + 0.26],
+    [neckBase[0] + 0.14, neckBase[1] - 0.12],
+    [neckBase[0] + 0.10, neckBase[1] - 0.04],
+  ];
+  drawInkStroke(ctx, polyHToPx(groove1H, W, sk), rng, {
+    baseWidth: 2.2 * s,
+    color: THEME_COLORS.ink,
+    wobbleScale: 0.2,
+  });
+  drawInkStroke(ctx, polyHToPx(groove2H, W, sk), rng, {
+    baseWidth: 2.0 * s,
+    color: THEME_COLORS.ink,
+    wobbleScale: 0.2,
+  });
+  drawInkStroke(ctx, polyHToPx(groove3H, W, sk), rng, {
+    baseWidth: 1.8 * s,
+    color: THEME_COLORS.ink,
+    wobbleScale: 0.2,
+  });
+
+  // Facet division line across lower chest plate
+  drawInkStroke(
+    ctx,
+    polyHToPx(
+      [
+        [throatTop[0] - 0.08, throatTop[1] + 0.22],
+        [throatTop[0] + 0.14, throatTop[1] + 0.18],
+      ],
+      W,
+      sk
+    ),
+    rng,
+    {
+      baseWidth: 2.2 * s,
+      color: THEME_COLORS.ink,
+      wobbleScale: 0.2,
+      doubleChance: 0,
+      breakChance: 0,
+      imperfectJoin: false,
+    }
+  );
+
+  // ---------------------------------------------------------------------------
+  // E. DORSAL NAPE VERTEBRAE PLATES (4 segmented plates)
+  // ---------------------------------------------------------------------------
   const napeSeamsH: PointH[][] = [
     [
-      [napeTop[0] + 0.04, napeTop[1] + 0.08],
-      [napeTop[0] + 0.18, napeTop[1] + 0.12],
+      [napeTop[0] + 0.02, napeTop[1] + 0.06],
+      [napeTop[0] + 0.16, napeTop[1] + 0.10],
     ],
     [
-      [napeTop[0] - 0.02, napeTop[1] + 0.20],
-      [napeTop[0] + 0.14, napeTop[1] + 0.24],
+      [napeTop[0] - 0.02, napeTop[1] + 0.18],
+      [napeTop[0] + 0.14, napeTop[1] + 0.22],
     ],
     [
-      [napeBot[0] + 0.02, napeBot[1] - 0.12],
-      [napeBot[0] + 0.16, napeBot[1] - 0.08],
+      [napeBot[0] + 0.04, napeBot[1] - 0.12],
+      [napeBot[0] + 0.18, napeBot[1] - 0.08],
+    ],
+    // Diagonal biomechanical cervical panel seams on black neck core
+    [
+      [napeTop[0] + 0.04, napeTop[1] + 0.14],
+      [throatTop[0] - 0.14, throatTop[1] + 0.10],
+    ],
+    [
+      [napeBot[0] + 0.02, napeBot[1] - 0.14],
+      [neckBase[0] + 0.06, neckBase[1] - 0.10],
     ],
   ];
   for (const ns of napeSeamsH) {
     carveNegativeSeam(ctx, polyHToPx(ns, W, sk), rng, {
       baseWidth: 2.0 * s,
-      wobbleScale: 0.3,
+      wobbleScale: 0.25,
     });
   }
-
-  // Cross-contour hatching on throat plate edge
-  carveCrossContourEdgeHatch(
-    ctx,
-    hToPx([throatTop[0] + 0.06, throatTop[1] + 0.20], W, sk),
-    hToPx([throatBot[0] + 0.06, throatBot[1] - 0.14], W, sk),
-    [-0.92, -0.38],
-    7,
-    9.0 * s,
-    rng
-  );
 
   recorder?.captureStage(canvas, 0.22, 0.32, 'bottom-up');
 }
 
 /**
- * 2. UPPER CHEST & COLLAR RIM (`torso`)
- * Matches the bust reference: collar rim, upper pectoral plates, and shoulder collar mount
- * cropped cleanly at the bottom and left edges. NO arms, NO legs, NO full body.
+ * 2. UPPER CHEST & CHUNKY SEGMENTED COLLAR ARMOR (`torso`)
+ * Matches the bust reference: collar rim, pectoral plates, and shoulder mount
+ * cropped cleanly at the bottom and left edges.
  */
 export function drawEvaTorsoLayer(
   ctx: Canvas2DContext,
@@ -170,9 +261,9 @@ export function drawEvaTorsoLayer(
     [neckBase[0] + 0.04, neckBase[1] + 0.08],
   ];
 
-  fillInkSilhouetteWithFringe(ctx, polyHToPx(chestPolyH, W, sk), rng, 3.0 * s, 5.0 * s);
+  fillInkSilhouetteWithFringe(ctx, polyHToPx(chestPolyH, W, sk), rng, 2.4 * s, 4.2 * s);
 
-  // Iconic Collar Bone Armor Rim (white negative space)
+  // Chunky collar armor rim (white negative space)
   carveNegativeSeam(
     ctx,
     polyHToPx(
@@ -185,10 +276,10 @@ export function drawEvaTorsoLayer(
       sk
     ),
     rng,
-    { baseWidth: 3.2 * s, wobbleScale: 0.4 }
+    { baseWidth: 3.0 * s, wobbleScale: 0.3 }
   );
 
-  // Upper pectoral chevron groove (the green/black chevron in reference)
+  // Upper pectoral chevron groove (the green/red chevron in reference)
   carveNegativeSeam(
     ctx,
     polyHToPx(
@@ -201,10 +292,14 @@ export function drawEvaTorsoLayer(
       sk
     ),
     rng,
-    { baseWidth: 2.6 * s, wobbleScale: 0.35 }
+    { baseWidth: 2.6 * s, wobbleScale: 0.25 }
   );
 
-  // Rear shoulder / collar pylon mounting plate seam at left
+  // Red accent notch at the collar chevron point (green accent in ref -> red)
+  const redNotchCenter = hToPx([collarCenter[0] + 0.10, collarCenter[1] + 0.30], W, sk);
+  drawInkDot(ctx, redNotchCenter[0], redNotchCenter[1], 4.5 * s, rng, THEME_COLORS.red);
+
+  // Rear shoulder collar pylon mounting plate seam at left
   carveNegativeSeam(
     ctx,
     polyHToPx(
@@ -217,7 +312,7 @@ export function drawEvaTorsoLayer(
       sk
     ),
     rng,
-    { baseWidth: 2.4 * s, wobbleScale: 0.35 }
+    { baseWidth: 2.4 * s, wobbleScale: 0.25 }
   );
 
   recorder?.captureStage(canvas, 0.14, 0.22, 'top-down');

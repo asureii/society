@@ -1,28 +1,24 @@
 import { THEME_COLORS } from '../../config/theme.ts';
 import {
-  drawInkDot,
-  drawInkStroke,
   fillRoughenedPolygon,
   type Canvas2DContext,
-  type Point2D,
 } from '../../scene/art/inkBrush.ts';
 import { createRng } from '../../scene/art/rng.ts';
 import {
-  carveCrossContourEdgeHatch,
   carveNegativeSeam,
   fillInkSilhouetteWithFringe,
   type AnyCanvas,
   type EvaDrawOrderRecorder,
 } from './evaSurface.ts';
-import { EVA_PROPORTIONS } from './proportions.ts';
-import { EVA_SKELETON, hToPx, polyHToPx, type PointH } from './skeleton.ts';
+import { EVA_SKELETON, polyHToPx, type PointH } from './skeleton.ts';
 
 /**
  * Draws Eva-01 `jaw` layer matching official bust reference artwork:
- * - Hinged mandible with sharp angled chin-guard projection
- * - 6 jagged upward lower teeth along mandible rim
- * - Angular faceted chin-plate seam cuts (white negative space)
- * - Vertical ink drips falling into open paper space
+ * - Completely CLOSED jaw meeting upper face along clean mechanical seam line
+ * - Zero teeth, zero serrations
+ * - Angular red chin cap (#D4141C) at the blunt beak tip
+ * - Smooth concave sweep on the underside of the jaw curving back to the neck
+ * - Internal mandibular plate seam line
  */
 export function drawEvaJawLayer(
   ctx: Canvas2DContext,
@@ -39,117 +35,59 @@ export function drawEvaJawLayer(
   ctx.clearRect(0, 0, W, H);
 
   const { joints } = sk;
-  const { jawHinge, jawTip } = joints;
+  const { jawHinge, chinTip, jawThroatJunction } = joints;
 
-  // 1. Mandible & Sharp Angled Chin Guard matching reference
+  // ---------------------------------------------------------------------------
+  // 1. CLOSED LOWER MANDIBLE PLATE SILHOUETTE
+  // Upper rim meets upper snout; underside is a smooth concave curve to throat
+  // ---------------------------------------------------------------------------
   const jawPolyH: PointH[] = [
-    // Hinge root under cheek pod
+    // Hinge root at lower cheek
     [jawHinge[0], jawHinge[1]],
-    // Mandible upper tooth rim
-    [jawHinge[0] + 0.22, jawHinge[1] + 0.08],
-    [jawTip[0] - 0.08, jawTip[1] - 0.14],
-    // Sharp angled chin guard tip (the green chin guard in reference)
-    [jawTip[0], jawTip[1] - 0.04],
-    [jawTip[0] - 0.06, jawTip[1] + 0.08],
-    // Under-chin barb / sub-mandible notch
-    [jawTip[0] - 0.16, jawTip[1] + 0.02],
-    [jawTip[0] - 0.28, jawTip[1] - 0.06],
-    // Mandible underside sweeping back to throat connection
-    [jawHinge[0] + 0.16, jawTip[1] - 0.16],
-    [jawHinge[0] + 0.02, jawHinge[1] + 0.14],
+    // Upper jaw-seam rim fitting flush against upper snout
+    [jawHinge[0] + 0.22, jawHinge[1] + 0.02],
+    [chinTip[0] - 0.04, chinTip[1] - 0.04],
+    // Blunt beak tip
+    [chinTip[0], chinTip[1]],
+    // Chin cap lower edge
+    [chinTip[0] - 0.08, chinTip[1] + 0.06],
+    // Underside of jaw: smooth concave sweep back to neck/throat junction
+    [chinTip[0] - 0.20, chinTip[1] + 0.04],
+    [chinTip[0] - 0.34, chinTip[1] + 0.01],
+    [jawThroatJunction[0] + 0.08, jawThroatJunction[1] - 0.02],
+    [jawThroatJunction[0], jawThroatJunction[1]],
+    // Rear mandible contour ascending back to hinge
+    [jawHinge[0] + 0.02, jawHinge[1] + 0.08],
   ];
 
-  fillInkSilhouetteWithFringe(ctx, polyHToPx(jawPolyH, W, sk), rng, 2.0 * s, 3.8 * s);
+  fillInkSilhouetteWithFringe(ctx, polyHToPx(jawPolyH, W, sk), rng, 1.8 * s, 3.2 * s);
 
-  // Angular chin guard plate seam (the boundary of the green chin plate in reference)
+  // ---------------------------------------------------------------------------
+  // 2. ANGULAR RED CHIN CAP AT BEAK TIP
+  // ---------------------------------------------------------------------------
+  const chinCapPolyH: PointH[] = [
+    [chinTip[0] - 0.10, chinTip[1] - 0.08],
+    [chinTip[0], chinTip[1]],
+    [chinTip[0] - 0.08, chinTip[1] + 0.06],
+    [chinTip[0] - 0.14, chinTip[1] + 0.01],
+  ];
+  fillRoughenedPolygon(ctx, polyHToPx(chinCapPolyH, W, sk), rng, THEME_COLORS.red, 0.6 * s);
+
+  // Negative seam line bounding the red chin cap
   carveNegativeSeam(
     ctx,
     polyHToPx(
       [
-        [jawTip[0] - 0.12, jawTip[1] - 0.12],
-        [jawTip[0] - 0.04, jawTip[1] + 0.02],
+        [chinTip[0] - 0.10, chinTip[1] - 0.08],
+        [chinTip[0] - 0.14, chinTip[1] + 0.01],
+        [chinTip[0] - 0.08, chinTip[1] + 0.06],
       ],
       W,
       sk
     ),
     rng,
-    { baseWidth: 2.2 * s, wobbleScale: 0.3 }
+    { baseWidth: 2.2 * s, wobbleScale: 0.2 }
   );
 
-  // Mandibular armor seam line
-  carveNegativeSeam(
-    ctx,
-    polyHToPx(
-      [
-        [jawHinge[0] + 0.08, jawHinge[1] + 0.10],
-        [jawHinge[0] + 0.26, jawHinge[1] + 0.14],
-        [jawTip[0] - 0.18, jawTip[1] - 0.08],
-      ],
-      W,
-      sk
-    ),
-    rng,
-    { baseWidth: 2.0 * s, wobbleScale: 0.35 }
-  );
-
-  // 2. Lower Jagged Teeth along mandible rim
-  const toothStartX = jawHinge[0] + 0.22;
-  const toothEndX = jawTip[0] - 0.08;
-  const toothY = jawHinge[1] + 0.12;
-  const numTeeth = EVA_PROPORTIONS.head.lowerTeethCount;
-  const slotW = (toothEndX - toothStartX) / numTeeth;
-
-  for (let i = 0; i < numTeeth; i++) {
-    const tx0 = toothStartX + i * slotW + slotW * 0.08;
-    const tx1 = toothStartX + (i + 1) * slotW - slotW * 0.08;
-    const tMidX = (tx0 + tx1) * 0.5;
-    const tY = toothY + (i / numTeeth) * 0.10;
-    const toothLenH = i === 1 || i === 4 ? 0.090 : 0.075;
-
-    const toothPolyPx: Point2D[] = polyHToPx(
-      [
-        [tx0, tY],
-        [tx1, tY],
-        [tMidX, tY - toothLenH],
-      ],
-      W,
-      sk
-    );
-    fillRoughenedPolygon(ctx, toothPolyPx, rng, THEME_COLORS.paperPure, 0.7 * s);
-  }
-
-  // 3. Vertical Ink Drips hanging from the chin tip
-  const chinDripPx0 = hToPx([jawTip[0] - 0.04, jawTip[1] + 0.06], W, sk);
-  const chinDripPxMid = hToPx([jawTip[0] - 0.04, jawTip[1] + 0.28], W, sk);
-  const chinDripPxEnd = hToPx([jawTip[0] - 0.045, jawTip[1] + 0.46], W, sk);
-  drawInkStroke(ctx, [chinDripPx0, chinDripPxMid, chinDripPxEnd], rng, {
-    baseWidth: 2.6 * s,
-    color: THEME_COLORS.ink,
-    taperScale: 1.35,
-    wobbleScale: 0.3,
-  });
-  drawInkDot(ctx, chinDripPxEnd[0], chinDripPxEnd[1] + 6 * s, 2.2 * s, rng, THEME_COLORS.ink);
-
-  const midDripPx0 = hToPx([jawTip[0] - 0.22, jawTip[1] - 0.02], W, sk);
-  const midDripPxEnd = hToPx([jawTip[0] - 0.22, jawTip[1] + 0.24], W, sk);
-  drawInkStroke(ctx, [midDripPx0, midDripPxEnd], rng, {
-    baseWidth: 2.2 * s,
-    color: THEME_COLORS.ink,
-    taperScale: 1.3,
-    wobbleScale: 0.3,
-  });
-  drawInkDot(ctx, midDripPxEnd[0], midDripPxEnd[1] + 5 * s, 1.8 * s, rng, THEME_COLORS.ink);
-
-  // Cross-contour hatching under mandible
-  carveCrossContourEdgeHatch(
-    ctx,
-    hToPx([jawHinge[0] + 0.12, jawHinge[1] + 0.12], W, sk),
-    hToPx([jawTip[0] - 0.18, jawTip[1] - 0.04], W, sk),
-    [0.18, -0.98],
-    5,
-    7.0 * s,
-    rng
-  );
-
-  recorder.captureStage(canvas, 0.74, 0.96, 'left-right');
+  recorder.captureStage(canvas, 0.80, 0.92, 'left-right');
 }

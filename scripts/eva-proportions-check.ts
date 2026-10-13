@@ -361,8 +361,8 @@ function main() {
 
   // Place eye & pupil onto 1024-space canvases at `eyeCenter`
   const eyeCenterPx = hToPx(sk.joints.eyeCenter, S, sk);
-  const eyeBoxPx = Math.round(EVA_PROPORTIONS.head.eyeWidthH * hPx * 1.5);
-  const pupilBoxPx = Math.round(EVA_PROPORTIONS.head.eyeWidthH * hPx * 1.2);
+  const eyeBoxPx = Math.round(EVA_PROPORTIONS.head.eyeWidthH * hPx * 1.2);
+  const pupilBoxPx = Math.round(EVA_PROPORTIONS.head.eyeWidthH * hPx * 1.0);
 
   const eye = new SoftwareCanvas2D(S, S);
   eye.drawImage(

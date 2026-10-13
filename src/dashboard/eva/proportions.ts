@@ -19,13 +19,11 @@ export interface EvaProportionsConfig {
     widthH: number;
     eyeWidthH: number;
     eyeHeightH: number;
-    upperTeethCount: number;
-    lowerTeethCount: number;
   };
 
   horn: {
     lengthH: number;
-    /** Angle above horizontal in degrees (~50° forward-up to top-right) */
+    /** Angle above horizontal in degrees (~56° forward-up to top-right) */
     angleAboveHorizontalDeg: number;
     baseWidthH: number;
   };
@@ -33,7 +31,7 @@ export interface EvaProportionsConfig {
   neck: {
     lengthH: number;
     widthH: number;
-    /** Forward lean of the neck from vertical (~42°) */
+    /** Forward lean of the neck from vertical (~26°) */
     leanDeg: number;
   };
 
@@ -50,23 +48,21 @@ export const EVA_PROPORTIONS: EvaProportionsConfig = {
 
   head: {
     heightH: 1.0,
-    widthH: 1.20, // includes swept rear occipital fins
-    eyeWidthH: 0.18, // sleek angled visor slit matching reference
-    eyeHeightH: 0.07,
-    upperTeethCount: 6,
-    lowerTeethCount: 6,
+    widthH: 1.25, // includes swept rear occipital fins
+    eyeWidthH: 0.22, // sleek angled visor slit matching reference
+    eyeHeightH: 0.06,
   },
 
   horn: {
-    lengthH: 1.30,
-    angleAboveHorizontalDeg: 55, // 55° forward and up matching reference
-    baseWidthH: 0.12,
+    lengthH: 1.32,
+    angleAboveHorizontalDeg: 56, // 56° forward and up matching reference
+    baseWidthH: 0.20, // thick armored base where it meets brow plate
   },
 
   neck: {
-    lengthH: 1.05,
+    lengthH: 1.06,
     widthH: 0.72,
-    leanDeg: 28, // ~28° forward lean matching reference bust posture
+    leanDeg: 26, // ~26° forward lean matching reference bust posture
   },
 
   chest: {

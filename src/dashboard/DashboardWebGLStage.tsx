@@ -768,7 +768,7 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
         PIVOT_JAW[1] - PIVOT_HEAD[1] + jawShakeY,
         0.01
       );
-      jawGroupRef.current.rotation.z = THREE.MathUtils.degToRad(-(curJawDeg - 11.5));
+      jawGroupRef.current.rotation.z = THREE.MathUtils.degToRad(-curJawDeg);
     }
 
     if (pupilMeshRef.current) {

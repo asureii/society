@@ -10,7 +10,7 @@ import { EVA_SKELETON, hToPx } from './skeleton.ts';
 
 /**
  * Draws Eva-01 `drips` layer (512x512 transparent canvas):
- * Vertical ink drips hanging from the sharp chin guard and mandible.
+ * Subtle peripheral ink drips located at bottom rear crop, keeping face and chin pristine.
  */
 export function drawEvaDripsLayer(
   ctx: Canvas2DContext,
@@ -25,32 +25,28 @@ export function drawEvaDripsLayer(
 
   ctx.clearRect(0, 0, W, H);
 
-  const { jawTip } = sk.joints;
+  const { napeBot, collarCenter } = sk.joints;
 
-  // Drips in H units: [xH, startYH, endYH, widthPx]
+  // Drips in H units placed at rear shoulder / bottom crop away from the face
   const columnsH: Array<[number, number, number, number]> = [
-    // Main long drip hanging from the chin tip
-    [jawTip[0] - 0.04, jawTip[1] + 0.06, jawTip[1] + 0.52, 3.0],
-    // Mid mandible drip
-    [jawTip[0] - 0.22, jawTip[1] - 0.02, jawTip[1] + 0.32, 2.4],
-    // Rear throat/jaw junction drip
-    [jawTip[0] - 0.42, jawTip[1] - 0.14, jawTip[1] + 0.18, 2.0],
+    // Rear shoulder bleed drip
+    [napeBot[0] - 0.12, napeBot[1] + 0.18, napeBot[1] + 0.46, 2.2],
+    // Collar underside drip
+    [collarCenter[0] - 0.18, collarCenter[1] + 0.22, collarCenter[1] + 0.52, 2.0],
   ];
 
   for (const [xH, y0H, y1H, bw] of columnsH) {
     const p0 = hToPx([xH, y0H], W, sk);
-    const pMid = hToPx([xH + rng.range(-0.004, 0.004), (y0H + y1H) * 0.5], W, sk);
-    const p1 = hToPx([xH + rng.range(-0.004, 0.004), y1H], W, sk);
+    const pMid = hToPx([xH + rng.range(-0.003, 0.003), (y0H + y1H) * 0.5], W, sk);
+    const p1 = hToPx([xH + rng.range(-0.003, 0.003), y1H], W, sk);
 
     drawInkStroke(ctx, [p0, pMid, p1], rng, {
-      baseWidth: bw * s * 1.15,
+      baseWidth: bw * s,
       color: THEME_COLORS.ink,
-      wobbleScale: 0.35,
-      taperScale: 1.35,
-      breakChance: 0.12,
+      wobbleScale: 0.25,
+      taperScale: 1.25,
     });
 
-    drawInkDot(ctx, p1[0], p1[1] + 7 * s, bw * s * 0.85, rng, THEME_COLORS.ink);
-    drawInkDot(ctx, p1[0], p1[1] + 20 * s, bw * s * 0.55, rng, THEME_COLORS.ink);
+    drawInkDot(ctx, p1[0], p1[1] + 5 * s, bw * s * 0.75, rng, THEME_COLORS.ink);
   }
 }
