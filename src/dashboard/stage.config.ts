@@ -64,6 +64,11 @@ export interface DashboardStageConfig {
       ampY: number;
     };
   };
+  /** Eva-01 silhouette options */
+  eva: {
+    /** Optional tiny red glint on the eye (<= 6px) that reflects the orb (default true) */
+    eyeGlint: boolean;
+  };
   /** Palette & ink budget thresholds enforced by automated verification */
   paletteBudget: {
     minWhiteShare: number;
@@ -120,6 +125,9 @@ export const STAGE_DASHBOARD_CONFIG: DashboardStageConfig = {
       ampX: 0.055,
       ampY: 0.14,
     },
+  },
+  eva: {
+    eyeGlint: true,
   },
   paletteBudget: {
     minWhiteShare: 0.55,
