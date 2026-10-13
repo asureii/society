@@ -1,26 +1,79 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
+import { gsap } from '../lib/gsap';
+import { computeIntroFrameTelemetry } from '../lib/introTimeline';
 import { CHAPTERS, useAppStore } from '../store/useAppStore';
 
 export const ScrollPill: React.FC = () => {
-  const scrollProgress = useAppStore((s) => s.scrollProgress);
   const activeChapter = useAppStore((s) => s.activeChapter);
-  const pct = Math.round(scrollProgress * 100);
+  const onBlack = useAppStore((s) => s.onBlack);
+  const introState = useAppStore((s) => s.introState);
+  const introElapsedSec = useAppStore((s) => s.introElapsedSec);
+  const isSkippingIntro = useAppStore((s) => s.isSkippingIntro);
+  const skipProgress = useAppStore((s) => s.skipProgress);
+  const reducedMotion = useAppStore((s) => s.reducedMotion);
+  const debugScrubber = useAppStore((s) => s.debugScrubber);
+  const labelRef = useRef<HTMLSpanElement | null>(null);
+  const barRef = useRef<HTMLDivElement | null>(null);
+
+  const isScrubbingIntro = debugScrubber.enabled && debugScrubber.mode === 'intro';
+  const hudOpacity =
+    introState === 'done' && !isScrubbingIntro
+      ? 1
+      : computeIntroFrameTelemetry(introElapsedSec, isSkippingIntro, skipProgress, reducedMotion)
+          .hudOpacity;
+
+  useEffect(() => {
+    const updatePill = () => {
+      const p = useAppStore.getState().scrollProgress;
+      const pct = Math.round(p * 100);
+      if (labelRef.current) {
+        labelRef.current.textContent = `${String(pct).padStart(2, '0')}%`;
+      }
+      if (barRef.current) {
+        barRef.current.style.height = `${Math.max(2, p * 100)}%`;
+      }
+    };
+
+    gsap.ticker.add(updatePill);
+    updatePill();
+    return () => {
+      gsap.ticker.remove(updatePill);
+    };
+  }, []);
 
   return (
     <aside
+      data-hud
       data-hud-element="scroll-pill"
+      data-on-black={onBlack ? 'true' : 'false'}
+      style={{
+        opacity: hudOpacity,
+        visibility: hudOpacity <= 0.01 ? 'hidden' : 'visible',
+      }}
       aria-label="Scroll Depth Progress"
-      className="fixed right-3 md:right-4 top-1/2 -translate-y-1/2 z-40 pointer-events-none flex flex-col items-center gap-1.5"
+      className="hidden md:flex fixed right-2.5 top-1/2 -translate-y-1/2 z-40 pointer-events-none flex-col items-center gap-1.5"
     >
-      <span className="font-mono text-xs font-bold tracking-tighter bg-paper-pure border border-ink px-1 text-ink">
-        {String(pct).padStart(2, '0')}%
+      <span
+        ref={labelRef}
+        className={`font-mono text-[10px] font-bold tracking-tighter border px-1 transition-colors duration-200 ${
+          onBlack
+            ? 'bg-ink border-paper-pure text-paper-pure'
+            : 'bg-paper-pure border-ink text-ink'
+        }`}
+      >
+        00%
       </span>
 
-      {/* Slim vertical scroll-progress pill: black outline with red fill */}
-      <div className="relative w-2.5 h-32 md:h-40 bg-paper-pure border-2 border-ink overflow-hidden">
+      {/* Slim vertical scroll-progress pill: switches outline to white on black */}
+      <div
+        className={`relative w-2.5 h-32 md:h-36 border-2 overflow-hidden transition-colors duration-200 ${
+          onBlack ? 'bg-ink border-paper-pure' : 'bg-paper-pure border-ink'
+        }`}
+      >
         <div
+          ref={barRef}
           className="w-full bg-red transition-none origin-top"
-          style={{ height: `${Math.max(2, scrollProgress * 100)}%` }}
+          style={{ height: '2%' }}
         />
 
         {/* Chapter tick marks */}
@@ -30,7 +83,13 @@ export const ScrollPill: React.FC = () => {
             <span
               key={ch.id}
               className={`absolute left-0 right-0 h-[1.5px] ${
-                activeChapter === ch.id ? 'bg-ink' : 'bg-ink/30'
+                onBlack
+                  ? activeChapter === ch.id
+                    ? 'bg-paper-pure'
+                    : 'bg-paper-pure/40'
+                  : activeChapter === ch.id
+                    ? 'bg-ink'
+                    : 'bg-ink/30'
               }`}
               style={{ top: `${topPct}%` }}
             />

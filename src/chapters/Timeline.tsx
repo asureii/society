@@ -2,124 +2,103 @@ import React, { useEffect, useRef } from 'react';
 import { PROFILE } from '../config/profile';
 import { gsap } from '../lib/gsap';
 import { useAppStore } from '../store/useAppStore';
-import { ChapterCard } from '../ui/ChapterCard';
-import { InkSpotIllustration } from '../ui/InkSpotIllustration';
+import {
+  MangaPanel,
+  MangaPinnedChapter,
+} from '../ui/MangaPageLayout';
 
 export const Timeline: React.FC = () => {
-  const sectionRef = useRef<HTMLElement | null>(null);
-  const trackRef = useRef<HTMLDivElement | null>(null);
+  const cardRefs = useRef<(HTMLElement | null)[]>([]);
+  const hasLoadedRef = useRef<boolean>(false);
+  const activeChapter = useAppStore((s) => s.activeChapter);
   const reducedMotion = useAppStore((s) => s.reducedMotion);
-  const isMobile = useAppStore((s) => s.isMobile);
 
   useEffect(() => {
-    if (!sectionRef.current || !trackRef.current || reducedMotion || isMobile) return;
+    if (activeChapter !== 'timeline' || hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
 
-    const ctx = gsap.context(() => {
-      const track = trackRef.current!;
-      const getScrollAmount = () => {
-        return Math.max(0, track.scrollWidth - window.innerWidth + 160);
-      };
+    const elements = cardRefs.current.filter((el): el is HTMLElement => el !== null);
+    if (elements.length === 0) return;
 
-      gsap.to(track, {
-        x: () => -getScrollAmount(),
-        ease: 'none',
-        scrollTrigger: {
-          trigger: sectionRef.current,
-          start: 'top top',
-          end: () => `+=${Math.max(850, getScrollAmount())}`,
-          pin: true,
-          scrub: 0.8,
-          invalidateOnRefresh: true,
-        },
+    if (reducedMotion) {
+      elements.forEach((el) => {
+        el.style.transform = 'translate3d(0, 0, 0)';
       });
-    }, sectionRef);
+      return;
+    }
 
-    return () => ctx.revert();
-  }, [reducedMotion, isMobile]);
+    gsap.fromTo(
+      elements,
+      { y: 14 },
+      {
+        y: 0,
+        duration: 0.42,
+        stagger: 0.06,
+        ease: 'power3.out',
+      },
+    );
+  }, [activeChapter, reducedMotion]);
 
   return (
-    <section
-      ref={sectionRef}
-      id="chapter-timeline"
-      aria-labelledby="heading-timeline"
-      className="relative min-h-screen w-full manga-page-wipe page-beat-safe pb-20 pointer-events-auto flex flex-col justify-center overflow-hidden"
+    <MangaPinnedChapter
+      id="timeline"
+      sceneId="s6-long-scroll"
+      chapterNumber="06"
+      title="THE LONG SCROLL"
+      jpSubtitle="陸 // 絵巻"
+      classification="EMAKI CHRONOLOGY"
+      summary="FOUR PARALLAX PLANES TRACK LATERALLY ACROSS RUINED ARCHES, ELEVATED RAILS, AND MILESTONE BEACONS."
+      alignment="full"
     >
-      <div
-        data-content-box="timeline-header"
-        className="w-full max-w-6xl mx-auto mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4"
-      >
-        <div id="heading-timeline">
-          <ChapterCard
-            number="06"
-            title="CHRONOLOGY"
-            jpSubtitle="陸 // 航跡"
-            alertText="OPERATIONAL TIMELINE"
-          />
-        </div>
-        <div className="flex items-center gap-3 border-2 border-ink bg-paper-pure p-2">
-          <InkSpotIllustration motif="stone-cairn" seed={606} className="w-24 h-14" />
-          <span className="font-mono text-xs font-bold uppercase text-ink max-w-[180px]">
-            MILESTONES ETCHED ALONG THE APPROACH.
-          </span>
-        </div>
-      </div>
-
-      {/* Horizontal-feeling panel sequence driven by vertical scroll on desktop, stacked cleanly on mobile */}
-      <div className="w-full max-w-6xl mx-auto">
-        <div
-          ref={trackRef}
-          className="flex flex-col md:flex-row items-stretch gap-6 md:w-max"
+      {/* Top half stays open for S6 Emaki Handscroll arches and sunset orb; stationary panel below */}
+      <div className="w-full flex-1 flex flex-col justify-end pb-2 pointer-events-none">
+        <MangaPanel
+          panelCode="06 // EMAKI CHRONOLOGY"
+          panelTitle="HORIZONTAL MILESTONE TRACK // 01–04"
+          redAccentCorner
+          className="max-h-[45vh] lg:max-h-none overflow-hidden"
         >
-          {PROFILE.timeline.map((entry, idx) => (
-            <article
-              key={entry.id}
-              data-content-box={`timeline-card-${idx}`}
-              className="w-full md:w-[400px] shrink-0 bg-paper-pure border-3 border-ink p-6 shadow-[5px_5px_0px_var(--ink)] flex flex-col justify-between relative"
-            >
-              <div>
-                <div className="flex items-center justify-between border-b-2 border-ink pb-2 mb-4">
-                  <span className="font-mono text-xs font-bold bg-ink text-paper-pure px-2 py-0.5">
-                    {entry.code}
+          {/* Four Milestone Cards loaded once and kept permanently readable */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+            {PROFILE.timeline.map((entry, idx) => (
+              <article
+                key={entry.id}
+                ref={(el) => {
+                  cardRefs.current[idx] = el;
+                }}
+                className="border-2 border-ink bg-paper p-2.5 flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-1 border-b border-ink/20 pb-1 mb-1">
+                    <span className="bg-ink text-paper-pure font-mono text-[9px] font-bold px-1 py-0.2 uppercase">
+                      {entry.code} // BEACON 0{idx + 1}
+                    </span>
+                    <span className="font-mono text-[9px] font-bold text-ink">
+                      {entry.period}
+                    </span>
+                  </div>
+                  <h3 className="font-serif font-bold text-xs sm:text-sm text-ink uppercase leading-snug">
+                    {entry.title}
+                  </h3>
+                  <div className="font-mono text-[9px] sm:text-[10px] font-bold text-red mt-0.5 mb-1">
+                    {entry.organization} • {entry.classification}
+                  </div>
+                  <p className="font-sans text-[11px] sm:text-xs text-ink leading-snug line-clamp-3">
+                    {entry.summary}
+                  </p>
+                </div>
+
+                <div className="mt-1.5 pt-1 border-t border-ink/20 flex items-center justify-between font-mono text-[9px] sm:text-[10px] font-bold uppercase">
+                  <span className="truncate max-w-[130px]">{entry.caption}</span>
+                  <span className="text-red shrink-0">
+                    0{idx + 1}/0{PROFILE.timeline.length}
                   </span>
-                  <span
-                    className={`font-mono text-xs font-bold px-2 py-0.5 uppercase border border-ink ${
-                      idx === PROFILE.timeline.length - 1
-                        ? 'bg-red text-paper-pure border-red'
-                        : 'bg-paper text-ink'
-                    }`}
-                  >
-                    {entry.classification}
-                  </span>
                 </div>
-
-                <div className="font-display text-sm tracking-[0.16em] text-red uppercase mb-1">
-                  {entry.period}
-                </div>
-
-                <h3 className="font-serif font-bold text-xl text-ink uppercase leading-snug">
-                  {entry.title}
-                </h3>
-                <div className="font-mono text-xs font-bold text-ink mt-1 mb-4">
-                  {entry.organization}
-                </div>
-
-                <p className="font-mono text-xs leading-relaxed text-ink border-t border-ink/15 pt-3">
-                  {entry.summary}
-                </p>
-              </div>
-
-              <div className="mt-6 pt-3 border-t-2 border-ink flex items-center justify-between">
-                <span className="font-display text-xs tracking-[0.12em] uppercase text-ink">
-                  {entry.caption}
-                </span>
-                <span className="font-mono text-xs font-bold text-ink">
-                  0{idx + 1} / 0{PROFILE.timeline.length}
-                </span>
-              </div>
-            </article>
-          ))}
-        </div>
+              </article>
+            ))}
+          </div>
+        </MangaPanel>
       </div>
-    </section>
+    </MangaPinnedChapter>
   );
 };

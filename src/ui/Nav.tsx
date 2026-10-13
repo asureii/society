@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { PROFILE } from '../config/profile';
+import { computeIntroFrameTelemetry } from '../lib/introTimeline';
 import { useAppStore, type ChapterId, type DiscordStatusType } from '../store/useAppStore';
 
 const NAV_ITEMS: { id: ChapterId; label: string; anchor: string }[] = [
@@ -11,14 +12,18 @@ const NAV_ITEMS: { id: ChapterId; label: string; anchor: string }[] = [
   { id: 'contact', label: 'CONTACT', anchor: '#chapter-contact' },
 ];
 
-function renderCompactDiscordDot(status: DiscordStatusType) {
+function renderCompactDiscordDot(status: DiscordStatusType, onBlack: boolean) {
+  const strokeVar = onBlack ? 'var(--paper-pure)' : 'var(--ink)';
+  const fillVar = onBlack ? 'var(--ink)' : 'var(--paper-pure)';
   switch (status) {
     case 'online':
       return {
         label: 'SYNC ACTIVE',
         dot: (
           <span
-            className="inline-block w-2.5 h-2.5 bg-red border border-ink shrink-0"
+            className={`inline-block w-2.5 h-2.5 bg-red border shrink-0 ${
+              onBlack ? 'border-paper-pure' : 'border-ink'
+            }`}
             style={{ borderRadius: '9999px' }}
           />
         ),
@@ -28,8 +33,8 @@ function renderCompactDiscordDot(status: DiscordStatusType) {
         label: 'STANDBY',
         dot: (
           <svg className="w-2.5 h-2.5 shrink-0" viewBox="0 0 12 12" aria-hidden="true">
-            <circle cx="6" cy="6" r="5" fill="var(--paper-pure)" stroke="var(--ink)" strokeWidth="1.5" />
-            <path d="M6 1 A5 5 0 0 1 6 11 Z" fill="var(--ink)" />
+            <circle cx="6" cy="6" r="5" fill={fillVar} stroke={strokeVar} strokeWidth="1.5" />
+            <path d="M6 1 A5 5 0 0 1 6 11 Z" fill={strokeVar} />
           </svg>
         ),
       };
@@ -37,8 +42,12 @@ function renderCompactDiscordDot(status: DiscordStatusType) {
       return {
         label: 'DND',
         dot: (
-          <span className="inline-flex items-center justify-center w-2.5 h-2.5 bg-ink shrink-0">
-            <span className="block w-1.5 h-[1.5px] bg-paper-pure" />
+          <span
+            className={`inline-flex items-center justify-center w-2.5 h-2.5 shrink-0 ${
+              onBlack ? 'bg-paper-pure' : 'bg-ink'
+            }`}
+          >
+            <span className={`block w-1.5 h-[1.5px] ${onBlack ? 'bg-ink' : 'bg-paper-pure'}`} />
           </span>
         ),
       };
@@ -48,7 +57,7 @@ function renderCompactDiscordDot(status: DiscordStatusType) {
         label: 'SIGNAL LOST',
         dot: (
           <svg className="w-2.5 h-2.5 shrink-0" viewBox="0 0 12 12" aria-hidden="true">
-            <circle cx="6" cy="6" r="4.5" fill="none" stroke="var(--ink)" strokeWidth="2" />
+            <circle cx="6" cy="6" r="4.5" fill="none" stroke={strokeVar} strokeWidth="2" />
           </svg>
         ),
       };
@@ -58,13 +67,25 @@ function renderCompactDiscordDot(status: DiscordStatusType) {
 export const Nav: React.FC = () => {
   const headerRef = useRef<HTMLElement | null>(null);
   const activeChapter = useAppStore((s) => s.activeChapter);
-  const activeBeatMode = useAppStore((s) => s.activeBeatMode);
-  const isPageOpaque = useAppStore((s) => s.isPageOpaque);
+  const onBlack = useAppStore((s) => s.onBlack);
   const discordStatus = useAppStore((s) => s.discord.status);
   const scrollToTarget = useAppStore((s) => s.scrollToTarget);
+  const introState = useAppStore((s) => s.introState);
+  const introElapsedSec = useAppStore((s) => s.introElapsedSec);
+  const isSkippingIntro = useAppStore((s) => s.isSkippingIntro);
+  const skipProgress = useAppStore((s) => s.skipProgress);
+  const reducedMotion = useAppStore((s) => s.reducedMotion);
+  const debugScrubber = useAppStore((s) => s.debugScrubber);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Measure real HUD height and set CSS variables --hud-top and --hud-side (Part C5)
+  const isScrubbingIntro = debugScrubber.enabled && debugScrubber.mode === 'intro';
+  const hudOpacity =
+    introState === 'done' && !isScrubbingIntro
+      ? 1
+      : computeIntroFrameTelemetry(introElapsedSec, isSkippingIntro, skipProgress, reducedMotion)
+          .hudOpacity;
+
+  // Measure real HUD bottom and set CSS variables --hud-top and --hud-side (Part E2 & E3)
   useEffect(() => {
     const updateHudMetrics = () => {
       if (!headerRef.current) return;
@@ -82,43 +103,56 @@ export const Nav: React.FC = () => {
     return () => window.removeEventListener('resize', updateHudMetrics);
   }, []);
 
-  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, anchor: string) => {
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, target: string) => {
     e.preventDefault();
     setMobileMenuOpen(false);
     if (scrollToTarget) {
-      scrollToTarget(anchor);
+      scrollToTarget(target);
     } else {
-      document.querySelector(anchor)?.scrollIntoView({ behavior: 'smooth' });
+      document.querySelector(target)?.scrollIntoView({ behavior: 'smooth' });
     }
   };
 
-  const { label: statusLabel, dot: statusDot } = renderCompactDiscordDot(discordStatus);
-  const isSolidBand = activeBeatMode === 'page' || isPageOpaque;
+  const { label: statusLabel, dot: statusDot } = renderCompactDiscordDot(discordStatus, onBlack);
+
+  const plateTheme = onBlack
+    ? 'bg-ink text-paper-pure border-paper-pure'
+    : 'bg-paper-pure text-ink border-ink shadow-[3px_3px_0px_var(--ink)]';
+
+  const linkTheme = onBlack
+    ? 'bg-ink text-paper-pure hover:bg-red hover:text-paper-pure'
+    : 'bg-paper-pure text-ink hover:bg-ink hover:text-paper-pure';
+
+  const dividerBorder = onBlack ? 'border-paper-pure' : 'border-ink';
 
   return (
     <header
       ref={headerRef}
+      data-hud
       data-hud-element="top-bar"
-      className={`fixed top-0 left-0 right-0 z-40 px-4 md:px-10 pt-3 md:pt-4 pb-2.5 transition-colors duration-200 ${
-        isSolidBand
-          ? 'bg-paper border-b-2 border-ink pointer-events-auto'
-          : 'bg-transparent pointer-events-none'
-      }`}
+      data-on-black={onBlack ? 'true' : 'false'}
+      style={{
+        opacity: hudOpacity,
+        visibility: hudOpacity <= 0.01 ? 'hidden' : 'visible',
+      }}
+      className="fixed top-0 left-0 right-0 z-40 px-3 sm:px-5 md:px-10 pt-2 md:pt-3 pb-2 bg-transparent pointer-events-none transition-colors duration-200"
     >
-      <div className="flex items-center justify-between gap-3">
-        {/* Merged Wordmark Plate + Compact Discord Status Dot + 12px Label (No sub-label line, no separate floating chip per C4) */}
-        <div className="pointer-events-auto inline-flex items-stretch bg-paper-pure border-2 border-ink shadow-[3px_3px_0px_var(--ink)]">
+      <div className="flex items-center justify-between gap-2">
+        {/* Compact Wordmark Plate + Discord Status Dot */}
+        <div
+          className={`pointer-events-auto inline-flex items-stretch border-2 transition-colors duration-200 ${plateTheme}`}
+        >
           <a
             href="#chapter-cover"
             onClick={(e) => handleNavClick(e, '#chapter-cover')}
-            className="flex items-center gap-2 px-3 py-1.5 hover:bg-ink hover:text-paper-pure transition-colors"
+            className={`flex items-center gap-1.5 px-2.5 py-1 transition-colors ${linkTheme}`}
           >
-            <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <rect x="1.5" y="1.5" width="21" height="21" stroke="currentColor" strokeWidth="2" />
               <polygon points="12,4 20,19 4,19" fill="currentColor" />
               <circle cx="12" cy="14" r="2.6" fill="var(--red)" />
             </svg>
-            <span className="font-display text-xs sm:text-sm tracking-[0.14em] uppercase">
+            <span className="font-display text-xs tracking-[0.14em] uppercase">
               {PROFILE.shortName}
             </span>
           </a>
@@ -127,10 +161,10 @@ export const Nav: React.FC = () => {
             href="#chapter-status"
             onClick={(e) => handleNavClick(e, '#chapter-status')}
             aria-live="polite"
-            className="flex items-center gap-1.5 border-l-2 border-ink px-2.5 py-1.5 hover:bg-ink hover:text-paper-pure transition-colors"
+            className={`flex items-center gap-1.5 border-l-2 ${dividerBorder} px-2 py-1 transition-colors ${linkTheme}`}
           >
             {statusDot}
-            <span className="font-mono text-xs font-bold tracking-wider uppercase">
+            <span className="font-mono text-[10px] sm:text-xs font-bold tracking-wider uppercase">
               {statusLabel}
             </span>
           </a>
@@ -139,7 +173,7 @@ export const Nav: React.FC = () => {
         {/* Desktop Boxed Navigation Bar */}
         <nav
           aria-label="Chapter Navigation"
-          className="hidden md:flex pointer-events-auto items-center bg-paper-pure border-2 border-ink shadow-[3px_3px_0px_var(--ink)]"
+          className={`hidden md:flex pointer-events-auto items-center border-2 transition-colors duration-200 ${plateTheme}`}
         >
           {NAV_ITEMS.slice(0, 3).map((item) => {
             const isActive = activeChapter === item.id;
@@ -148,7 +182,7 @@ export const Nav: React.FC = () => {
                 key={item.id}
                 href={item.anchor}
                 onClick={(e) => handleNavClick(e, item.anchor)}
-                className="relative px-3 py-1.5 font-display text-xs tracking-[0.14em] border-r-2 border-ink bg-paper-pure text-ink hover:bg-ink hover:text-paper-pure transition-colors"
+                className={`relative px-3 py-1 font-display text-xs tracking-[0.14em] border-r-2 ${dividerBorder} transition-colors ${linkTheme}`}
               >
                 {isActive && (
                   <span
@@ -164,9 +198,8 @@ export const Nav: React.FC = () => {
             );
           })}
 
-          {/* Center Emblem Mark */}
           <div
-            className="flex items-center justify-center px-2 py-1.5 border-r-2 border-ink bg-ink text-paper-pure"
+            className={`flex items-center justify-center px-2 py-1 border-r-2 ${dividerBorder} bg-ink text-paper-pure`}
             aria-hidden="true"
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none">
@@ -182,8 +215,8 @@ export const Nav: React.FC = () => {
                 key={item.id}
                 href={item.anchor}
                 onClick={(e) => handleNavClick(e, item.anchor)}
-                className={`relative px-3 py-1.5 font-display text-xs tracking-[0.14em] bg-paper-pure text-ink hover:bg-ink hover:text-paper-pure transition-colors ${
-                  idx < arr.length - 1 ? 'border-r-2 border-ink' : ''
+                className={`relative px-3 py-1 font-display text-xs tracking-[0.14em] transition-colors ${linkTheme} ${
+                  idx < arr.length - 1 ? `border-r-2 ${dividerBorder}` : ''
                 }`}
               >
                 {isActive && (
@@ -201,23 +234,23 @@ export const Nav: React.FC = () => {
           })}
         </nav>
 
-        {/* Mobile Boxed MENU Button (Part C7) */}
+        {/* Compact Mobile Boxed MENU Button */}
         <div className="md:hidden pointer-events-auto relative">
           <button
             type="button"
             onClick={() => setMobileMenuOpen((v) => !v)}
             aria-expanded={mobileMenuOpen}
             aria-label="Toggle chapter navigation menu"
-            className="bg-paper-pure border-2 border-ink px-3 py-1.5 font-display text-xs tracking-[0.16em] uppercase shadow-[3px_3px_0px_var(--ink)] flex items-center gap-2 cursor-pointer"
+            className={`border-2 px-2.5 py-1 font-display text-xs tracking-[0.14em] uppercase flex items-center gap-1.5 cursor-pointer transition-colors duration-200 ${plateTheme}`}
           >
-            <span className="inline-block w-2 h-2 bg-red" />
+            <span className="inline-block w-1.5 h-1.5 bg-red" />
             <span>{mobileMenuOpen ? 'CLOSE' : 'MENU'}</span>
           </button>
 
           {mobileMenuOpen && (
             <nav
               aria-label="Mobile Chapter Navigation"
-              className="absolute right-0 mt-2 w-48 bg-paper-pure border-2 border-ink shadow-[5px_5px_0px_var(--ink)] flex flex-col z-50"
+              className={`absolute right-0 mt-1.5 w-44 border-2 flex flex-col z-50 ${plateTheme}`}
             >
               {NAV_ITEMS.map((item) => {
                 const isActive = activeChapter === item.id;
@@ -226,7 +259,7 @@ export const Nav: React.FC = () => {
                     key={item.id}
                     href={item.anchor}
                     onClick={(e) => handleNavClick(e, item.anchor)}
-                    className="px-3.5 py-2.5 font-display text-xs tracking-[0.14em] border-b border-ink last:border-b-0 flex items-center justify-between bg-paper-pure text-ink hover:bg-ink hover:text-paper-pure"
+                    className={`px-3 py-2 font-display text-xs tracking-[0.14em] border-b ${dividerBorder} last:border-b-0 flex items-center justify-between ${linkTheme}`}
                   >
                     <span>{item.label}</span>
                     {isActive && <span className="w-2 h-2 bg-red inline-block" />}

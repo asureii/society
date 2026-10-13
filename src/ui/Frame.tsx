@@ -1,13 +1,29 @@
 import React, { useEffect, useState } from 'react';
 import { PROFILE } from '../config/profile';
+import { computeIntroFrameTelemetry } from '../lib/introTimeline';
 import { CHAPTERS, useAppStore } from '../store/useAppStore';
 
 export const Frame: React.FC = () => {
   const hasScrolled = useAppStore((s) => s.hasScrolled);
   const activeChapter = useAppStore((s) => s.activeChapter);
+  const onBlack = useAppStore((s) => s.onBlack);
+  const introState = useAppStore((s) => s.introState);
+  const introElapsedSec = useAppStore((s) => s.introElapsedSec);
+  const isSkippingIntro = useAppStore((s) => s.isSkippingIntro);
+  const skipProgress = useAppStore((s) => s.skipProgress);
+  const reducedMotion = useAppStore((s) => s.reducedMotion);
+  const debugScrubber = useAppStore((s) => s.debugScrubber);
+
+  const isScrubbingIntro = debugScrubber.enabled && debugScrubber.mode === 'intro';
+  const hudOpacity =
+    introState === 'done' && !isScrubbingIntro
+      ? 1
+      : computeIntroFrameTelemetry(introElapsedSec, isSkippingIntro, skipProgress, reducedMotion)
+          .hudOpacity;
+
   const currentMeta = CHAPTERS.find((c) => c.id === activeChapter) ?? CHAPTERS[0];
 
-  // Show Chapter Tab and Vertical Japanese Tablet only for ~1.5s as a chapter starts, then slide out of view (no opacity fade to grey)
+  // Show Chapter Tab and Vertical Japanese Tablet only for ~1.5s as a chapter starts, then slide out of view
   const [showChapterStamp, setShowChapterStamp] = useState(true);
 
   useEffect(() => {
@@ -20,14 +36,27 @@ export const Frame: React.FC = () => {
 
   return (
     <div
+      data-on-black={onBlack ? 'true' : 'false'}
+      style={{
+        opacity: hudOpacity,
+        visibility: hudOpacity <= 0.01 ? 'hidden' : 'visible',
+      }}
       className="pointer-events-none fixed inset-0 z-30 select-none overflow-hidden"
       aria-hidden="true"
     >
-      {/* Outer rectangular manga viewport frame */}
-      <div className="absolute inset-2 md:inset-3 border-2 border-ink" />
+      {/* Outer rectangular manga viewport frame: switches to white ink on black when onBlack is active */}
+      <div
+        className={`absolute inset-2 md:inset-3 border-2 transition-colors duration-200 ${
+          onBlack ? 'border-paper-pure' : 'border-ink'
+        }`}
+      />
 
-      {/* Thin vertical black rule on the left edge of the viewport */}
-      <div className="hidden md:block absolute top-3 bottom-3 left-6 w-[1.5px] bg-ink" />
+      {/* Thin vertical rule on the left edge of the viewport */}
+      <div
+        className={`hidden md:block absolute top-3 bottom-3 left-6 w-[1.5px] transition-colors duration-200 ${
+          onBlack ? 'bg-paper-pure' : 'bg-ink'
+        }`}
+      />
 
       {/* Thinner red corner crop-marks (<= 16px, at edges only per C4) */}
       <svg
@@ -60,19 +89,25 @@ export const Frame: React.FC = () => {
       </svg>
 
       {/* Sparse hazard-stripe edge motif (<= 16px wide, at extreme left edge only) */}
-      <div className="hidden md:block absolute top-28 left-3 w-2 h-14 border border-ink pattern-hazard-red" />
+      <div
+        className={`hidden md:block absolute top-28 left-3 w-2 h-14 border pattern-hazard-red transition-colors duration-200 ${
+          onBlack ? 'border-paper-pure' : 'border-ink'
+        }`}
+      />
 
       {/* Chapter Tab along the left edge: slides in for 1.5s when chapter changes, then slides out to the left */}
       <div
-        className={`hidden md:flex absolute left-3 top-1/2 -translate-y-1/2 flex-col items-center gap-2 bg-paper-pure border-2 border-ink px-1.5 py-2.5 transition-transform duration-300 ease-in-out ${
-          showChapterStamp ? 'translate-x-0' : '-translate-x-[160%]'
-        }`}
+        className={`hidden md:flex absolute left-3 top-1/2 -translate-y-1/2 flex-col items-center gap-2 border-2 px-1.5 py-2.5 transition-all duration-300 ease-in-out ${
+          onBlack
+            ? 'bg-ink border-paper-pure text-paper-pure'
+            : 'bg-paper-pure border-ink text-ink'
+        } ${showChapterStamp && !onBlack ? 'translate-x-0' : '-translate-x-[160%]'}`}
       >
         <span className="font-mono text-xs font-bold tracking-widest text-red">
           {currentMeta.number}
         </span>
         <span
-          className="font-mono text-xs tracking-widest text-ink uppercase"
+          className="font-mono text-xs tracking-widest uppercase"
           style={{ writingMode: 'vertical-rl' }}
         >
           {currentMeta.title}
@@ -81,13 +116,15 @@ export const Frame: React.FC = () => {
 
       {/* Vertical Japanese Tablet on the top-right below nav: shows for 1.5s on chapter start, then slides out to the right */}
       <div
-        className={`hidden md:flex absolute right-4 top-24 flex-col items-center bg-paper-pure border-2 border-ink px-2 py-3 shadow-[3px_3px_0px_var(--ink)] transition-transform duration-300 ease-in-out ${
-          showChapterStamp ? 'translate-x-0' : 'translate-x-[160%]'
-        }`}
+        className={`hidden md:flex absolute right-4 top-24 flex-col items-center border-2 px-2 py-3 shadow-[3px_3px_0px_var(--ink)] transition-all duration-300 ease-in-out ${
+          onBlack
+            ? 'bg-ink border-paper-pure text-paper-pure'
+            : 'bg-paper-pure border-ink text-ink'
+        } ${showChapterStamp && !onBlack ? 'translate-x-0' : 'translate-x-[160%]'}`}
       >
         <span className="w-2 h-2 bg-red mb-2" />
         <span
-          className="font-serif font-bold text-xs tracking-[0.25em] text-ink"
+          className="font-serif font-bold text-xs tracking-[0.25em]"
           style={{ writingMode: 'vertical-rl' }}
         >
           {currentMeta.jpSubtitle || PROFILE.jpDecorativeTitle}
@@ -97,7 +134,7 @@ export const Frame: React.FC = () => {
       {/* Animated "SCROLL" cue that slides out after the first movement */}
       <div
         className={`hidden sm:block absolute bottom-5 left-1/2 -translate-x-1/2 transition-transform duration-300 ease-in-out ${
-          hasScrolled ? 'translate-y-[200%]' : 'translate-y-0'
+          hasScrolled || onBlack ? 'translate-y-[200%]' : 'translate-y-0'
         }`}
       >
         <div className="flex items-center gap-2.5 bg-paper-pure border-2 border-ink px-3 py-1.5 shadow-[3px_3px_0px_var(--ink)]">
@@ -110,4 +147,3 @@ export const Frame: React.FC = () => {
     </div>
   );
 };
-

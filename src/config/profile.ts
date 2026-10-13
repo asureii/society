@@ -72,6 +72,18 @@ export interface ProfileConfig {
     pageTurnUrl?: string;
     inkSfxUrl?: string;
   };
+  intro: {
+    quote: [string, string];
+    mobileQuote: [string, string, string];
+    attribution: string;
+  };
+  endCard: {
+    title: string;
+    subline: string;
+    jpLabel: string;
+    cta: string;
+    replayCta: string;
+  };
 }
 
 export const PROFILE: ProfileConfig = {
@@ -98,7 +110,7 @@ export const PROFILE: ProfileConfig = {
     favoriteQuote: 'TODO: "Insert favorite Evangelion quote here in src/config/profile.ts"',
     syncNote: 'PATTERN BLUE // HARMONICS NOMINAL',
   },
-  githubUsername: 'TODO_GITHUB_USERNAME',
+  githubUsername: 'asureii',
   excludeForks: true,
   featuredRepos: [
     'pilot-file-portfolio',
@@ -150,7 +162,7 @@ export const PROFILE: ProfileConfig = {
       html_url: 'https://github.com',
     },
   ],
-  discordUserId: 'TODO_DISCORD_USER_ID',
+  discordUserId: '832522840682790913',
   allowColorHoverOnMedia: false,
   magiSkills: [
     {
@@ -238,7 +250,7 @@ export const PROFILE: ProfileConfig = {
   ],
   links: {
     github: 'https://github.com/TODO_GITHUB_USERNAME',
-    discord: 'https://discord.com/users/TODO_DISCORD_USER_ID',
+    discord: 'https://discord.com/users/832522840682790913',
     email: 'mailto:TODO_EMAIL@example.com',
     linkedin: 'https://linkedin.com/in/TODO_LINKEDIN',
   },
@@ -246,5 +258,17 @@ export const PROFILE: ProfileConfig = {
     ambientUrl: undefined,
     pageTurnUrl: undefined,
     inkSfxUrl: undefined,
+  },
+  intro: {
+    quote: ['MACHINERY IS A', 'PROJECTION OF THE MIND'],
+    mobileQuote: ['MACHINERY', 'IS A PROJECTION', 'OF THE MIND'],
+    attribution: '— JONATHAN ERICK CHRISTOVANDY',
+  },
+  endCard: {
+    title: 'THE END?',
+    subline: 'TODO: TO BE CONTINUED IN NEXT DEPLOYMENT',
+    jpLabel: '終劇',
+    cta: 'REWIND TO START',
+    replayCta: 'REPLAY INTRO',
   },
 };

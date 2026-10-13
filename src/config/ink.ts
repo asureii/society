@@ -100,6 +100,56 @@ export interface InkConfig {
    * Maximum texture dimension cap (4096px per brief).
    */
   maxTextureSize: number;
+
+  /**
+   * Zero-mean paper fiber grain amplitude (<= 0.016 so average empty-paper luminance stays >= 248/255).
+   */
+  paperGrainStrength: number;
+
+  /**
+   * Maximum live texture memory budget in megabytes (150MB per Part A4 & F).
+   */
+  maxLiveTextureMemoryMB: number;
+
+  /**
+   * Noise jaggedness of the Orb Iris Wipe transition edge.
+   */
+  irisJaggedness: number;
+
+  /**
+   * Low-frequency domain-warped edge displacement amplitude for Orb Iris transition.
+   */
+  irisEdgeAmplitude: number;
+
+  /**
+   * Quantized edge boil rate in frames per second (8–10 fps) for transition boundary.
+   */
+  irisEdgeBoilFps: number;
+
+  /**
+   * Maximum allowed per-frame radius derivative for the Orb Iris mask.
+   */
+  irisMaxStepDelta: number;
+
+  /**
+   * Low-frequency domain-warped edge displacement amplitude for S7 doorway ink closing finale.
+   */
+  endEdgeAmplitude: number;
+
+  /**
+   * Maximum downward ink drip length (in normalized UV units) from the top edge during S7 closing.
+   */
+  endDripLengthMax: number;
+
+  /**
+   * Safe radius multiplier around S7 orb during closing so ink does not cover the orb before endP ≈ 0.88.
+   */
+  endOrbSafeMultiplier: number;
+
+  /**
+   * Target radius in CSS pixels for the solid red accent disc above "THE END?" at endP = 1.0.
+   */
+  endAccentRadiusPx: number;
 }
 
 export const INK_CONFIG: InkConfig = {
@@ -121,4 +171,16 @@ export const INK_CONFIG: InkConfig = {
   boilVariantCount: 3,
   misregistrationOffsetPx: [2.6, -2.1],
   maxTextureSize: 4096,
+  paperGrainStrength: 0.012,
+  maxLiveTextureMemoryMB: 150,
+  irisJaggedness: 0.028,
+  irisEdgeAmplitude: 0.014,
+  irisEdgeBoilFps: 8.5,
+  irisMaxStepDelta: 0.072,
+  endEdgeAmplitude: 0.038,
+  endDripLengthMax: 0.085,
+  endOrbSafeMultiplier: 1.15,
+  endAccentRadiusPx: 10,
 };
+
+

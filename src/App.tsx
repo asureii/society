@@ -1,23 +1,25 @@
 import React from 'react';
-import { Loader } from './chapters/Loader';
-import { Cover } from './chapters/Cover';
 import { About } from './chapters/About';
-import { Work } from './chapters/Work';
-import { Status } from './chapters/Status';
-import { Skills } from './chapters/Skills';
-import { Timeline } from './chapters/Timeline';
 import { Contact } from './chapters/Contact';
+import { Cover } from './chapters/Cover';
+import { Intro } from './chapters/Intro/Intro';
+import { Skills } from './chapters/Skills';
+import { Status } from './chapters/Status';
+import { Timeline } from './chapters/Timeline';
+import { Work } from './chapters/Work';
+import { TOTAL_SCROLL_HEIGHT_VH } from './config/scroll.config';
 import { useDiscordPresence } from './hooks/useDiscordPresence';
 import { useHudCollisionCheck } from './hooks/useHudCollisionCheck';
 import { useLenis } from './hooks/useLenis';
 import { useMouseParallax } from './hooks/useMouseParallax';
 import { useReducedMotion } from './hooks/useReducedMotion';
 import { Scene } from './scene/Scene';
-import { CaptionBox } from './ui/CaptionBox';
+import { EndScreen } from './ui/EndScreen';
 import { Frame } from './ui/Frame';
 import { Nav } from './ui/Nav';
 import { ScrollPill } from './ui/ScrollPill';
 import { SoundToggle } from './ui/SoundToggle';
+import { TransitionScrubber } from './ui/TransitionScrubber';
 
 export const App: React.FC = () => {
   useReducedMotion();
@@ -28,61 +30,55 @@ export const App: React.FC = () => {
 
   return (
     <div className="relative min-h-screen w-full text-ink selection:bg-red selection:text-paper-pure">
-      {/* Chapter 0: Ink-draw Loader */}
-      <Loader />
+      {/* Chapter 0: Cinematic Intro Sequence ("Machinery is a projection of the mind") */}
+      <Intro />
 
-      {/* Fixed 2.5D WebGL Manga Canvas (aria-hidden) */}
+      {/* Fixed 2.5D Multi-Scene WebGL Manga Stage (aria-hidden) */}
       <Scene />
 
-      {/* Fixed Manga HUD Overlay: Frame, Nav, Scroll Progress Pill, Sound Toggle */}
+      {/* Full-Bleed "THE END?" Finale Overlay (active at endP >= 0.92, inert otherwise) */}
+      <EndScreen />
+
+      {/* Fixed Manga HUD Overlay: Frame, Nav, Scroll Progress Pill, Sound Toggle, Dev Scrubber */}
       <Frame />
       <Nav />
       <ScrollPill />
       <SoundToggle />
+      <TransitionScrubber />
 
-      {/* Continuous Scroll Journey Overlay (Chapters 01 - 07) */}
-      <main className="relative z-10 w-full">
-        {/* Scene Beat: Cover (01) */}
+      {/* 1. Single Scroll Spacer Element: Drives the native single scrollbar via Lenis */}
+      <div
+        id="scroll-spacer"
+        style={{ height: `${TOTAL_SCROLL_HEIGHT_VH}vh` }}
+        className="w-full pointer-events-none"
+        aria-hidden="true"
+      />
+
+      {/* 2. Single Fixed Pinned Panel Layer: position: fixed; inset: 0; pointer-events: none */}
+      <main
+        id="pinned-panel-layer"
+        className="fixed inset-0 pointer-events-none z-10 overflow-hidden"
+        aria-label="Pilot Chapters"
+      >
+        {/* S1 · Cover · "The Causeway" */}
         <Cover />
 
-        {/* Page Beat: About (02) */}
+        {/* S2 · Dossier · "The Observation Room" */}
         <About />
 
-        {/* Scene Beat Dolly: Stepping Stone Approach */}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none relative flex h-[55vh] w-full items-end justify-end pb-10 pr-8 md:pr-14"
-        >
-          <CaptionBox
-            code="DOLLY // 02-03"
-            text="FOOTSTEPS ECHO ACROSS THE BASALT CAUSEWAY. THE TWIN MONOLITH LOOMS AHEAD."
-          />
-        </div>
-
-        {/* Page Beat: Work (03) */}
+        {/* S3 · The Work · "The Archive City" */}
         <Work />
 
-        {/* Scene Beat: Status (04) — Side-panel telemetry */}
+        {/* S4 · Pilot Status · "The Plug" */}
         <Status />
 
-        {/* Page Beat: Skills (05) */}
+        {/* S5 · Skills · "The Three Pillars" */}
         <Skills />
 
-        {/* Scene Beat Dolly: Monolith Threshold */}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none relative flex h-[55vh] w-full items-end justify-end pb-10 pr-8 md:pr-14"
-        >
-          <CaptionBox
-            code="DOLLY // 05-06"
-            text="PASSING BENEATH THE FRACTURED LINTEL. THE RED CORE PULSES AT THE THRESHOLD."
-          />
-        </div>
-
-        {/* Page Beat: Timeline (06) */}
+        {/* S6 · Timeline · "The Long Scroll" */}
         <Timeline />
 
-        {/* Scene Beat: Contact (07) + Final "THE END?" Card */}
+        {/* S7 · Contact · "The Threshold" */}
         <Contact />
       </main>
     </div>
@@ -90,4 +86,3 @@ export const App: React.FC = () => {
 };
 
 export default App;
-

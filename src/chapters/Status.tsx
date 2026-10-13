@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { PROFILE } from '../config/profile';
-import { formatElapsedDuration, clamp } from '../lib/math';
+import { clamp, formatElapsedDuration } from '../lib/math';
 import { useAppStore, type DiscordStatusType } from '../store/useAppStore';
-import { CaptionBox } from '../ui/CaptionBox';
+import { MangaPinnedChapter } from '../ui/MangaPageLayout';
 
 function getStatusSpec(status: DiscordStatusType) {
   switch (status) {
@@ -12,7 +12,7 @@ function getStatusSpec(status: DiscordStatusType) {
         harmonics: 'NOMINAL // LOCKED',
         badge: (
           <span
-            className="inline-block w-3.5 h-3.5 bg-red border-2 border-ink"
+            className="inline-block w-3 h-3 bg-red border-2 border-ink"
             style={{ borderRadius: '9999px' }}
           />
         ),
@@ -22,7 +22,7 @@ function getStatusSpec(status: DiscordStatusType) {
         code: 'STANDBY',
         harmonics: 'LOW POWER // IDLE',
         badge: (
-          <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" aria-hidden="true">
+          <svg className="w-3 h-3" viewBox="0 0 16 16" aria-hidden="true">
             <circle cx="8" cy="8" r="6.5" fill="var(--paper-pure)" stroke="var(--ink)" strokeWidth="2" />
             <path d="M8 1.5 A6.5 6.5 0 0 1 8 14.5 Z" fill="var(--ink)" />
           </svg>
@@ -33,8 +33,8 @@ function getStatusSpec(status: DiscordStatusType) {
         code: 'DO NOT DISTURB',
         harmonics: 'ISOLATED // FOCUS',
         badge: (
-          <span className="inline-flex items-center justify-center w-3.5 h-3.5 bg-ink border border-ink">
-            <span className="block w-2 h-0.5 bg-paper-pure" />
+          <span className="inline-flex items-center justify-center w-3 h-3 bg-ink border border-ink">
+            <span className="block w-1.5 h-0.5 bg-paper-pure" />
           </span>
         ),
       };
@@ -44,7 +44,7 @@ function getStatusSpec(status: DiscordStatusType) {
         code: 'SIGNAL LOST',
         harmonics: 'OFFLINE // STANDBY',
         badge: (
-          <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" aria-hidden="true">
+          <svg className="w-3 h-3" viewBox="0 0 16 16" aria-hidden="true">
             <circle cx="8" cy="8" r="6" fill="none" stroke="var(--ink)" strokeWidth="2.5" />
           </svg>
         ),
@@ -62,154 +62,177 @@ export const Status: React.FC = () => {
   }, []);
 
   const spec = getStatusSpec(discord.status);
-  const primaryActivity = discord.activities[0];
 
-  let spotifyPct = 0;
+  // Audio stream can come from official Spotify connection OR any "Listening to" activity (type: 2, e.g. Apple Music / YouTube Music / Rich Presence)
+  const listeningActivity = discord.activities.find((a) => a.type === 2);
+  const isAudioActive = (discord.listeningToSpotify && Boolean(discord.spotify)) || Boolean(listeningActivity);
+
+  let audioTitle = '';
+  let audioArtist = '';
+  let audioPct: number | null = null;
+
   if (discord.listeningToSpotify && discord.spotify) {
+    audioTitle = discord.spotify.song;
+    audioArtist = discord.spotify.artist;
     const { start, end } = discord.spotify.timestamps;
     const total = Math.max(1, end - start);
-    spotifyPct = clamp(((nowMs - start) / total) * 100, 0, 100);
+    audioPct = clamp(((nowMs - start) / total) * 100, 0, 100);
+  } else if (listeningActivity) {
+    audioTitle = listeningActivity.details || listeningActivity.name;
+    audioArtist = listeningActivity.state || '';
+    if (listeningActivity.timestamps?.start && listeningActivity.timestamps?.end) {
+      const { start, end } = listeningActivity.timestamps;
+      const total = Math.max(1, end - start);
+      audioPct = clamp(((nowMs - start) / total) * 100, 0, 100);
+    }
   }
 
-  return (
-    <section
-      id="chapter-status"
-      aria-labelledby="heading-status"
-      style={{ paddingTop: 'calc(var(--hud-top, 64px) + 24px)' }}
-      className="relative min-h-[95vh] w-full px-5 sm:px-10 md:px-12 pb-12 pointer-events-none flex flex-col justify-between"
-    >
-      {/* Single Left Side Panel (<= 36vw on desktop) positioned OUTSIDE the Stage Focal Rect (x: 42-88%) */}
-      <div
-        data-content-box="status-side-panel"
-        aria-live="polite"
-        className="pointer-events-auto w-full md:max-w-[35vw] bg-paper-pure border-3 border-ink p-5 shadow-[5px_5px_0px_var(--ink)] space-y-4"
-      >
-        <div className="flex items-center justify-between border-b-2 border-red pb-2">
-          <div>
-            <span className="font-display text-xs tracking-[0.18em] uppercase text-red block">
-              CHAPTER 04 // TELEMETRY
-            </span>
-            <h2
-              id="heading-status"
-              className="font-serif font-bold text-2xl text-ink uppercase leading-none mt-0.5"
-            >
-              PILOT STATUS
-            </h2>
-          </div>
-          <span
-            className="font-serif text-xs tracking-widest border border-ink px-2 py-0.5"
-            aria-hidden="true"
-          >
-            同調率
-          </span>
-        </div>
+  // Primary activity for TELEMETRY (excluding music activity and custom status to avoid duplication)
+  const primaryActivity = discord.activities.find((a) => a !== listeningActivity && a.type !== 4);
 
-        {/* Identity + Shape Status */}
-        <div className="flex items-center gap-3.5 border-2 border-ink p-3 bg-paper">
-          <div className="relative w-14 h-14 border-2 border-ink bg-paper-pure overflow-hidden shrink-0 flex items-center justify-center">
-            {discord.avatarUrl ? (
-              <img
-                src={discord.avatarUrl}
-                alt={`${discord.displayName} avatar`}
-                className={`w-full h-full object-cover manga-image-filter ${
-                  PROFILE.allowColorHoverOnMedia ? 'hover:filter-none' : ''
-                }`}
-              />
+  return (
+    <MangaPinnedChapter
+      id="status"
+      sceneId="s4-plug"
+      chapterNumber="04"
+      title="THE PLUG"
+      jpSubtitle="肆 // 同調槽"
+      classification="PILOT TELEMETRY"
+      summary="CONCENTRIC RIPPLES PULSE AROUND THE SUBMERGED CORE VIA LANYARD TELEMETRY."
+      alignment="right"
+    >
+      <div className="w-full flex-1 flex justify-end items-center pointer-events-none">
+        {/* Compact Diagnostic Panel anchored right outside S4 focalRect */}
+        <div
+          data-content-box="status-diagnostic-panel"
+          data-avoid-hud
+          aria-live="polite"
+          className="w-full sm:max-w-[320px] md:w-[24vw] md:min-w-[270px] md:max-w-[320px] bg-paper-pure border-3 border-ink p-3.5 sm:p-4 shadow-[5px_5px_0px_var(--ink)] space-y-2.5 pointer-events-auto"
+        >
+          <div className="flex items-center justify-between border-b-2 border-red pb-1.5">
+            <div>
+              <span className="font-display text-[10px] tracking-[0.18em] uppercase text-red block">
+                CH.04 // THE PLUG
+              </span>
+              <h2
+                id="heading-status"
+                className="font-serif font-bold text-lg sm:text-xl text-ink uppercase leading-none mt-0.5"
+              >
+                PILOT STATUS
+              </h2>
+            </div>
+            <span
+              className="font-serif text-[10px] tracking-widest border border-ink px-1.5 py-0.5"
+              aria-hidden="true"
+            >
+              同調槽
+            </span>
+          </div>
+
+          {/* Identity + Shape Status */}
+          <div className="flex items-center gap-2.5 border border-ink p-2 bg-paper">
+            <div className="relative w-10 h-10 border border-ink bg-paper-pure overflow-hidden shrink-0 flex items-center justify-center">
+              {discord.avatarUrl ? (
+                <img
+                  src={discord.avatarUrl}
+                  alt={`${discord.displayName} avatar`}
+                  className={`w-full h-full object-cover manga-image-filter ${
+                    PROFILE.allowColorHoverOnMedia ? 'hover:filter-none' : ''
+                  }`}
+                />
+              ) : (
+                <svg className="w-6 h-6 text-ink" viewBox="0 0 24 24" fill="none">
+                  <polygon points="12,3 21,20 3,20" stroke="currentColor" strokeWidth="2" />
+                  <circle cx="12" cy="14" r="3" fill="var(--red)" />
+                </svg>
+              )}
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <div className="font-serif font-bold text-xs sm:text-sm text-ink truncate">
+                {discord.displayName}
+              </div>
+              {discord.customStatus && (
+                <div className="font-mono text-[9px] text-ink/75 truncate" title={discord.customStatus}>
+                  {discord.customStatus}
+                </div>
+              )}
+              <div className="mt-0.5 inline-flex items-center gap-1.5 bg-paper-pure border border-ink px-1.5 py-0.5">
+                {spec.badge}
+                <span className="font-mono text-[10px] font-bold tracking-wider uppercase text-ink">
+                  {spec.code}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Active Operation */}
+          <div className="border border-ink p-2 bg-paper space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="font-mono text-[10px] font-bold uppercase text-ink">
+                TELEMETRY
+              </span>
+              <span className="font-mono text-[10px] font-bold text-red">
+                {discord.connected ? 'WSS LIVE' : 'STANDBY'}
+              </span>
+            </div>
+
+            {primaryActivity ? (
+              <div>
+                <div className="flex items-baseline justify-between gap-2">
+                  <h3 className="font-serif font-bold text-xs text-ink uppercase truncate">
+                    {primaryActivity.name}
+                  </h3>
+                  {primaryActivity.timestamps?.start && (
+                    <span className="font-mono text-[10px] font-bold bg-ink text-paper-pure px-1 py-0.2">
+                      {formatElapsedDuration(primaryActivity.timestamps.start, nowMs)}
+                    </span>
+                  )}
+                </div>
+                {primaryActivity.details && (
+                  <p className="font-mono text-[10px] text-ink truncate mt-0.5">
+                    {primaryActivity.details}
+                  </p>
+                )}
+              </div>
             ) : (
-              <svg className="w-8 h-8 text-ink" viewBox="0 0 24 24" fill="none">
-                <polygon points="12,3 21,20 3,20" stroke="currentColor" strokeWidth="2" />
-                <circle cx="12" cy="14" r="3" fill="var(--red)" />
-              </svg>
+              <p className="font-mono text-[10px] text-ink">
+                {spec.harmonics} — RIPPLE RINGS SYNCED
+              </p>
             )}
           </div>
 
-          <div className="min-w-0 flex-1">
-            <div className="font-serif font-bold text-base text-ink truncate">
-              {discord.displayName}
-            </div>
-            <div className="font-mono text-xs text-ink truncate">@{discord.username}</div>
-            <div className="mt-1 inline-flex items-center gap-2 bg-paper-pure border border-ink px-2 py-0.5">
-              {spec.badge}
-              <span className="font-mono text-xs font-bold tracking-wider uppercase text-ink">
-                {spec.code}
+          {/* Audio Link (Spotify / Apple Music / RPC) */}
+          <div className="border border-ink p-2 bg-paper">
+            <div className="flex items-center justify-between mb-1">
+              <span className="font-mono text-[10px] font-bold uppercase text-ink">
+                AUDIO LINK
+              </span>
+              <span className="font-mono text-[10px] font-bold text-red uppercase">
+                {isAudioActive ? 'PLAYING' : 'IDLE'}
               </span>
             </div>
-          </div>
-        </div>
 
-        {/* Active Operation */}
-        <div className="border-2 border-ink p-3 bg-paper space-y-1.5">
-          <div className="flex items-center justify-between">
-            <span className="font-mono text-xs font-bold uppercase text-ink">
-              ACTIVE OPERATION
-            </span>
-            <span className="font-mono text-xs font-bold text-red">
-              {discord.connected ? 'WSS LIVE' : 'STANDBY'}
-            </span>
-          </div>
-
-          {primaryActivity ? (
-            <div>
-              <div className="flex items-baseline justify-between gap-2">
-                <h3 className="font-serif font-bold text-base text-ink uppercase">
-                  {primaryActivity.name}
-                </h3>
-                {primaryActivity.timestamps?.start && (
-                  <span className="font-mono text-xs font-bold bg-ink text-paper-pure px-1.5 py-0.5">
-                    {formatElapsedDuration(primaryActivity.timestamps.start, nowMs)}
-                  </span>
+            {isAudioActive ? (
+              <div className="space-y-1">
+                <div className="font-serif font-bold text-xs text-ink truncate">
+                  {audioTitle} {audioArtist ? `— ${audioArtist}` : ''}
+                </div>
+                {audioPct !== null && (
+                  <div className="w-full h-1.5 bg-paper-pure border border-ink overflow-hidden">
+                    <div
+                      className="h-full bg-red transition-all duration-300"
+                      style={{ width: `${audioPct}%` }}
+                    />
+                  </div>
                 )}
               </div>
-              {primaryActivity.details && (
-                <p className="font-mono text-xs text-ink mt-1">{primaryActivity.details}</p>
-              )}
-              {primaryActivity.state && (
-                <p className="font-mono text-xs text-ink">{primaryActivity.state}</p>
-              )}
-            </div>
-          ) : (
-            <p className="font-mono text-xs text-ink">
-              {spec.harmonics} — AWAITING LANYARD STREAM
-            </p>
-          )}
-        </div>
-
-        {/* Spotify Relay */}
-        <div className="border-2 border-ink p-3 bg-paper">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="font-mono text-xs font-bold uppercase text-ink">
-              SPOTIFY RELAY
-            </span>
-            <span className="font-mono text-xs font-bold text-red uppercase">
-              {discord.listeningToSpotify ? 'PLAYING' : 'IDLE'}
-            </span>
+            ) : (
+              <div className="font-mono text-[10px] text-ink">NO ACTIVE AUDIO STREAM</div>
+            )}
           </div>
-
-          {discord.listeningToSpotify && discord.spotify ? (
-            <div className="space-y-1.5">
-              <div className="font-serif font-bold text-sm text-ink truncate">
-                {discord.spotify.song} — {discord.spotify.artist}
-              </div>
-              <div className="w-full h-2 bg-paper-pure border border-ink overflow-hidden">
-                <div
-                  className="h-full bg-red transition-all duration-300"
-                  style={{ width: `${spotifyPct}%` }}
-                />
-              </div>
-            </div>
-          ) : (
-            <div className="font-mono text-xs text-ink">NO ACTIVE AUDIO STREAM</div>
-          )}
         </div>
       </div>
-
-      {/* Bottom-right single scene caption */}
-      <div className="pointer-events-auto self-end md:mr-10 mt-6">
-        <CaptionBox
-          code="CH.04 // TELEMETRY"
-          text="REAL-TIME NEURAL LINK TELEMETRY VIA LANYARD SOCKET."
-        />
-      </div>
-    </section>
+    </MangaPinnedChapter>
   );
 };

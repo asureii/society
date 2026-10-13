@@ -143,22 +143,16 @@ void main() {
   float extraHatch = gentleMidtoneHatch(baseUv, inkLuma, uHatchDensity);
   inkAmount = clamp(max(inkAmount, extraHatch), 0.0, 1.0);
 
-  // Fine paper fiber noise at <= 3% strength on the white paper only
-  float fiber = (hash21(vUv * 620.0) - 0.5) * 0.026;
-  vec3 paperWithFiber = clamp(uColorPaper + vec3(fiber), 0.94, 1.0);
+  // Fine zero-mean paper fiber noise at <= 1.5% strength so empty paper luminance stays >= 248/255
+  float fiber = (hash21(vUv * 620.0) - 0.5) * 0.012;
+  vec3 brightPaper = max(uColorPaper, vec3(0.992, 0.992, 0.988));
+  vec3 paperWithFiber = clamp(brightPaper + vec3(fiber), 0.976, 1.0);
 
   // Strict 3-color palette composition:
   // Start with bright white paper (or misregistered Red Orb plate), then composite black ink strokes on top
   vec3 basePlate = mix(paperWithFiber, uColorRed, isRedPlate);
   float quantizedInk = step(0.46, inkAmount);
   vec3 finalColor = mix(basePlate, uColorInk, quantizedInk);
-
-  // Chapter transition ragged ink-bleed dissolve (strictly pure ink, never grey)
-  if (uTransitionBleed > 0.01 && uReducedMotion < 0.5) {
-    float bleedNoise = valueNoise(vUv * 18.0 + vec2(0.0, uScrollProgress * 6.0));
-    float bleedEdge = step(1.0 - uTransitionBleed * 0.28, bleedNoise);
-    finalColor = mix(finalColor, uColorInk, bleedEdge);
-  }
 
   float outAlpha = step(0.45, max(tex.a, isRedPlate));
   if (outAlpha < 0.5) {

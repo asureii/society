@@ -23,3 +23,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Reference images (never bundled or committed)
+/reference
+/reference/
+ps5_controller.svg
+

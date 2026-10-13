@@ -8,6 +8,9 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "check:palette": "node scripts/check-palette.mjs",
+    "check:transitions": "node scripts/transition-check.ts",
+    "check:intro": "node scripts/intro-check.ts",
+    "verify": "node scripts/verify-scroll-flight.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -21,6 +24,7 @@
     "lenis": "^1.1.14",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-router-dom": "^7.18.4",
     "three": "^0.169.0",
     "zustand": "^5.0.0"
   },

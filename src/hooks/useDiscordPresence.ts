@@ -75,6 +75,34 @@ export function useDiscordPresence(): void {
     const applyLanyardPayload = (payload: LanyardDataPayload, viaSocket: boolean) => {
       if (unmounted) return;
       const user = payload.discord_user;
+
+      if (!user) {
+        console.warn(
+          `[Lanyard] Discord User ID "${userId}" is connected to Lanyard API, but presence is not monitored yet. To broadcast your live status, join the official Lanyard Discord server: https://discord.gg/lanyard (no bot invite required).`,
+        );
+        setDiscordPresence({
+          status: 'offline',
+          username: 'christovandy',
+          displayName: PROFILE.fullName,
+          avatarUrl: null,
+          customStatus: 'JOIN DISCORD.GG/LANYARD TO SYNC STATUS',
+          activities: [
+            {
+              name: 'LANYARD // AWAITING SERVER LINK',
+              type: 0,
+              details: `Discord User ID: ${userId}`,
+              state: 'Join discord.gg/lanyard to bridge presence',
+              timestamps: { start: Date.now() },
+            },
+          ],
+          listeningToSpotify: false,
+          spotify: null,
+          connected: viaSocket,
+          usingFallback: true,
+        });
+        return;
+      }
+
       const avatarUrl =
         user?.id && user?.avatar
           ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=256`
@@ -86,8 +114,8 @@ export function useDiscordPresence(): void {
 
       setDiscordPresence({
         status: payload.discord_status ?? 'offline',
-        username: user?.username ?? 'christovandy',
-        displayName: user?.global_name || user?.display_name || PROFILE.fullName,
+        username: user.username,
+        displayName: user.global_name || user.display_name || user.username || PROFILE.fullName,
         avatarUrl,
         customStatus: customAct?.state || customAct?.details || null,
         activities: nonCustomActivities,
@@ -101,7 +129,17 @@ export function useDiscordPresence(): void {
     const pollRestFallback = async () => {
       try {
         const res = await fetch(`https://api.lanyard.rest/v1/users/${encodeURIComponent(userId)}`);
-        if (!res.ok) return;
+        if (!res.ok) {
+          const errJson = (await res.json().catch(() => null)) as {
+            error?: { code?: string; message?: string };
+          } | null;
+          if (errJson?.error?.code === 'user_not_monitored') {
+            console.warn(
+              `[Lanyard] User ID "${userId}" is not being monitored by Lanyard. Join https://discord.gg/lanyard to enable live status.`,
+            );
+          }
+          return;
+        }
         const json = (await res.json()) as { success?: boolean; data?: LanyardDataPayload };
         if (json.success && json.data) {
           applyLanyardPayload(json.data, false);

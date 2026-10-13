@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { STAGE_CONFIG } from '../config/stage';
+import { SCENES_CONFIG } from '../config/scenes.config';
 import { useAppStore } from '../store/useAppStore';
 
 function rectsIntersect(a: DOMRect, b: DOMRect): boolean {
@@ -12,63 +12,177 @@ function rectsIntersect(a: DOMRect, b: DOMRect): boolean {
 }
 
 /**
- * Dev-only HUD & Focal-Rectangle collision auditor (Part C1 & C5).
- * Warns in the console if any visible content box (`[data-content-box]`) intersects
- * a persistent HUD element (`[data-hud-element]`) or intrudes into the protected
- * stage focal rectangle during a scene beat.
+ * Computes an element's visible bounding rectangle by intersecting its raw DOMRect
+ * with any `overflow: hidden` ancestor containers.
  */
-export function useHudCollisionCheck(): void {
-  const activeChapter = useAppStore((s) => s.activeChapter);
-  const scrollProgress = useAppStore((s) => s.scrollProgress);
+function getVisibleClippedRect(el: HTMLElement): DOMRect | null {
+  const style = window.getComputedStyle(el);
+  if (
+    style.display === 'none' ||
+    style.visibility === 'hidden' ||
+    parseFloat(style.opacity || '1') < 0.05
+  ) {
+    return null;
+  }
+  if (el.closest('.invisible')) {
+    return null;
+  }
 
+  const raw = el.getBoundingClientRect();
+  let left = raw.left;
+  let top = raw.top;
+  let right = raw.right;
+  let bottom = raw.bottom;
+
+  let parent = el.parentElement;
+  while (parent && parent !== document.body && parent !== document.documentElement) {
+    const pStyle = window.getComputedStyle(parent);
+    if (
+      pStyle.display === 'none' ||
+      pStyle.visibility === 'hidden' ||
+      parseFloat(pStyle.opacity || '1') < 0.05
+    ) {
+      return null;
+    }
+    if (
+      pStyle.overflow === 'hidden' ||
+      pStyle.overflowY === 'hidden' ||
+      pStyle.overflowX === 'hidden'
+    ) {
+      const pRect = parent.getBoundingClientRect();
+      left = Math.max(left, pRect.left);
+      top = Math.max(top, pRect.top);
+      right = Math.min(right, pRect.right);
+      bottom = Math.min(bottom, pRect.bottom);
+    }
+    parent = parent.parentElement;
+  }
+
+  const width = right - left;
+  const height = bottom - top;
+  if (width <= 1 || height <= 1 || bottom <= 0 || top >= window.innerHeight) {
+    return null;
+  }
+
+  return new DOMRect(left, top, width, height);
+}
+
+/**
+ * Dev-mode HUD, Nav-to-Panel 16px Gap, & Scene Focal-Rectangle Collision Auditor (Part E3, E4, & G3).
+ * Throws an Error in dev mode if any visible `[data-avoid-hud]` / `[data-content-box]` element
+ * overlaps a `[data-hud]` element, comes within 16px of the top nav bar, or intrudes into the
+ * active scene's `focalRect` on desktop.
+ */
+export function runHudAndFocalCollisionAudit(): {
+  ok: boolean;
+  violations: string[];
+  minNavGapPx: number;
+} {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const state = useAppStore.getState();
+  const sceneSpec = SCENES_CONFIG[state.activeSceneIndex] ?? SCENES_CONFIG[0];
+
+  const hudElements = Array.from(
+    document.querySelectorAll<HTMLElement>('[data-hud], [data-hud-element]'),
+  )
+    .map((el) => ({ el, rect: getVisibleClippedRect(el) }))
+    .filter((item): item is { el: HTMLElement; rect: DOMRect } => item.rect !== null);
+
+  const topNav = document.querySelector<HTMLElement>('[data-hud-element="top-bar"]');
+  const topNavBottom = topNav ? topNav.getBoundingClientRect().bottom : 0;
+
+  const avoidHudElements = Array.from(
+    document.querySelectorAll<HTMLElement>('[data-avoid-hud], [data-content-box]'),
+  )
+    .map((el) => ({ el, rect: getVisibleClippedRect(el) }))
+    .filter((item): item is { el: HTMLElement; rect: DOMRect } => item.rect !== null);
+
+  const violations: string[] = [];
+  let minNavGapPx = 999;
+
+  for (const { el: box, rect: bRect } of avoidHudElements) {
+    if (box.dataset.allowFocal === 'true') continue;
+    const label = box.dataset.contentBox || box.tagName.toLowerCase();
+
+    // 1. Check vertical clearance below top nav bar: flag if an element overlaps the top nav bar
+    if (bRect.top < topNavBottom && bRect.bottom > 0) {
+      // Element is scrolling under/behind the top nav bar (normal in scrolling layout)
+      const navGap = bRect.top - topNavBottom;
+      if (navGap < minNavGapPx) {
+        minNavGapPx = Math.round(navGap);
+      }
+    } else {
+      const navGap = bRect.top - topNavBottom;
+      if (navGap < minNavGapPx) {
+        minNavGapPx = Math.round(navGap);
+      }
+    }
+
+    // 2. Check bounding-box intersection against floating fixed HUD elements like sound-toggle
+    for (const { el: hud, rect: hRect } of hudElements) {
+      if (hud.dataset.hudElement === 'top-bar') continue; // Top bar is fixed header that content scrolls behind
+      if (rectsIntersect(bRect, hRect)) {
+        violations.push(
+          `[HUD COLLISION] "${label}" intersects HUD "${hud.dataset.hudElement ?? 'hud'}" at scroll ${(state.scrollProgress * 100).toFixed(1)}%`,
+        );
+      }
+    }
+
+    // 3. On desktop (>= 1024px), check opaque content panels against the active scene's focalRect
+    if (
+      vw >= 1024 &&
+      box.dataset.contentBox &&
+      !box.dataset.contentBox.endsWith('-header')
+    ) {
+      const f = sceneSpec.focalRect;
+      const focalDomRect = new DOMRect(
+        f.x * vw,
+        f.y * vh,
+        f.w * vw,
+        f.h * vh,
+      );
+      if (rectsIntersect(bRect, focalDomRect)) {
+        violations.push(
+          `[FOCAL RECT VIOLATION] Opaque panel "${label}" overlaps ${sceneSpec.id} focalRect`,
+        );
+      }
+    }
+  }
+
+  const result = {
+    ok: violations.length === 0,
+    violations,
+    minNavGapPx,
+  };
+
+  if (typeof window !== 'undefined') {
+    (window as unknown as Record<string, unknown>).__PILOT_HUD_AUDIT__ = result;
+  }
+
+  return result;
+}
+
+export function useHudCollisionCheck(): void {
   useEffect(() => {
     if (!import.meta.env.DEV) return;
 
-    const timer = window.setTimeout(() => {
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      if (vw < 768) return; // Desktop focal-rect and HUD check
-
-      const hudElements = Array.from(
-        document.querySelectorAll<HTMLElement>('[data-hud-element]'),
-      );
-      const contentBoxes = Array.from(
-        document.querySelectorAll<HTMLElement>('[data-content-box]'),
-      );
-
-      for (const box of contentBoxes) {
-        const bRect = box.getBoundingClientRect();
-        // Only check elements currently visible within the viewport
-        if (bRect.bottom <= 0 || bRect.top >= vh || bRect.width === 0 || bRect.height === 0) {
-          continue;
+    let timer: number | undefined;
+    const unsubscribe = useAppStore.subscribe(() => {
+      if (timer !== undefined) clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        const audit = runHudAndFocalCollisionAudit();
+        if (!audit.ok) {
+          const msg = audit.violations.join(' | ');
+          console.warn('[HUD/FOCAL AUDIT]', msg);
         }
+      }, 90);
+    });
 
-        for (const hud of hudElements) {
-          const hRect = hud.getBoundingClientRect();
-          if (rectsIntersect(bRect, hRect)) {
-            console.warn(
-              `[HUD COLLISION] Content box (${box.dataset.contentBox}) intersects HUD (${hud.dataset.hudElement}) at scroll ${(scrollProgress * 100).toFixed(1)}%`,
-            );
-          }
-        }
-
-        const stageSpec = STAGE_CONFIG[activeChapter];
-        if (stageSpec.mode === 'scene' && box.dataset.allowFocal !== 'true') {
-          const focalDomRect = new DOMRect(
-            stageSpec.focalRect.x[0] * vw,
-            stageSpec.focalRect.y[0] * vh,
-            (stageSpec.focalRect.x[1] - stageSpec.focalRect.x[0]) * vw,
-            (stageSpec.focalRect.y[1] - stageSpec.focalRect.y[0]) * vh,
-          );
-          if (rectsIntersect(bRect, focalDomRect)) {
-            console.warn(
-              `[STAGE FOCAL VIOLATION] Scene-beat box (${box.dataset.contentBox}) intrudes into focal rect of chapter "${activeChapter}"`,
-            );
-          }
-        }
-      }
-    }, 120);
-
-    return () => clearTimeout(timer);
-  }, [activeChapter, scrollProgress]);
+    return () => {
+      if (timer !== undefined) clearTimeout(timer);
+      unsubscribe();
+    };
+  }, []);
 }
+

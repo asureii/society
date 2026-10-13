@@ -2,212 +2,174 @@ import React, { useEffect, useRef } from 'react';
 import { PROFILE } from '../config/profile';
 import { gsap } from '../lib/gsap';
 import { useAppStore } from '../store/useAppStore';
-import { ChapterCard } from '../ui/ChapterCard';
-import { InkSpotIllustration } from '../ui/InkSpotIllustration';
+import { MangaPanel, MangaPinnedChapter } from '../ui/MangaPageLayout';
 
 export const About: React.FC = () => {
-  const sectionRef = useRef<HTMLElement | null>(null);
+  const secRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const hasLoadedRef = useRef<boolean>(false);
+  const activeChapter = useAppStore((s) => s.activeChapter);
   const reducedMotion = useAppStore((s) => s.reducedMotion);
 
   useEffect(() => {
-    if (!sectionRef.current || reducedMotion) return;
-    const ctx = gsap.context(() => {
-      const panels = gsap.utils.toArray<HTMLElement>('.about-manga-panel');
-      panels.forEach((panel, i) => {
-        gsap.fromTo(
-          panel,
-          { y: 20 },
-          {
-            y: 0,
-            ease: 'power2.out',
-            scrollTrigger: {
-              trigger: panel,
-              start: 'top 90%',
-              end: 'top 60%',
-              scrub: 0.4,
-            },
-            delay: i * 0.04,
-          },
-        );
-      });
-    }, sectionRef);
+    if (activeChapter !== 'about' || hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
 
-    return () => ctx.revert();
-  }, [reducedMotion]);
+    const elements = secRefs.current.filter((el): el is HTMLDivElement => el !== null);
+    if (elements.length === 0) return;
+
+    if (reducedMotion) {
+      elements.forEach((el) => {
+        el.style.transform = 'translate3d(0, 0, 0)';
+        el.style.clipPath = 'none';
+      });
+      return;
+    }
+
+    gsap.fromTo(
+      elements,
+      { y: 14 },
+      {
+        y: 0,
+        duration: 0.42,
+        stagger: 0.06,
+        ease: 'power3.out',
+        clearProps: 'clipPath',
+      },
+    );
+  }, [activeChapter, reducedMotion]);
 
   return (
-    <section
-      ref={sectionRef}
-      id="chapter-about"
-      aria-labelledby="heading-about"
-      className="relative min-h-screen w-full manga-page-wipe page-beat-safe pb-24 pointer-events-auto flex flex-col justify-center"
+    <MangaPinnedChapter
+      id="about"
+      sceneId="s2-observation"
+      chapterNumber="02"
+      title="THE OBSERVATION ROOM"
+      jpSubtitle="弐 // 観測室"
+      classification="NERV DOSSIER"
+      summary="PERSONNEL RECORD AND OPERATIONAL FOCUS AREAS CLASSIFIED UNDER MAGI SUPERVISION."
+      alignment="full"
     >
-      <div className="w-full max-w-6xl mx-auto space-y-8">
-        <div
-          data-content-box="about-header"
-          className="flex flex-col sm:flex-row sm:items-end justify-between gap-4"
-        >
-          <ChapterCard
-            number="02"
-            title="PERSONNEL FILE"
-            jpSubtitle="弐 // 人事記録"
-            alertText="NERV DOSSIER"
-          />
-          <div className="flex items-center gap-3 border-2 border-ink bg-paper-pure p-2">
-            <InkSpotIllustration motif="monolith-fragment" seed={202} className="w-24 h-14" />
-            <span className="font-mono text-xs font-bold uppercase text-ink max-w-[160px]">
-              DOSSIER UNSEALED. HARMONICS NOMINAL.
-            </span>
-          </div>
-        </div>
-
-        {/* 4 Irregular Black-Bordered Manga Panels on White */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Panel 1: Primary Dossier Specifications (7 cols) */}
-          <article
-            data-content-box="about-panel-a"
-            className="about-manga-panel lg:col-span-7 bg-paper-pure border-3 border-ink p-6 shadow-[5px_5px_0px_var(--ink)]"
+      {/* 2-Wing Pinned Manga Spread keeping Center Viewport Open for S2 Focal Porthole & Orb */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 sm:gap-3 items-stretch max-h-[45vh] lg:max-h-none overflow-hidden">
+        {/* Left Column (4 cols): Identification & Focus Areas */}
+        <div className="lg:col-span-4 flex flex-col gap-2 sm:gap-3">
+          <MangaPanel
+            panelCode="02.A // ID"
+            panelTitle={PROFILE.designationCode}
+            tiltDeg={-1.4}
+            bleedEdge="left"
+            redAccentCorner
           >
-            <div className="flex items-center justify-between border-b-2 border-ink pb-2 mb-4">
-              <span className="font-mono text-xs font-bold tracking-widest uppercase">
-                PANEL 02.A // IDENTIFICATION
-              </span>
-              <span className="font-mono text-xs font-bold text-red">ID-01</span>
+            <div
+              ref={(el) => {
+                secRefs.current[0] = el;
+              }}
+            >
+              <h3
+                id="heading-about"
+                className="font-serif font-bold text-sm sm:text-base text-ink uppercase"
+              >
+                {PROFILE.fullName}
+              </h3>
+              <p className="font-mono text-[10px] sm:text-[11px] font-bold text-red mt-0.5">
+                {PROFILE.roleTagline} • {PROFILE.location}
+              </p>
+              <p className="font-sans text-xs text-ink leading-relaxed mt-1.5 line-clamp-3 lg:line-clamp-none">
+                {PROFILE.bio[0]}
+              </p>
             </div>
+          </MangaPanel>
 
-            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-b border-ink/15 pb-4 mb-4">
-              <div>
-                <dt className="font-mono text-xs tracking-wider uppercase text-ink">
-                  DESIGNATION
-                </dt>
-                <dd id="heading-about" className="font-serif font-bold text-lg text-ink mt-0.5">
-                  {PROFILE.fullName}
-                </dd>
-              </div>
-              <div>
-                <dt className="font-mono text-xs tracking-wider uppercase text-ink">
-                  OPERATIONAL ROLE
-                </dt>
-                <dd className="font-mono text-xs font-bold text-ink mt-0.5">
-                  {PROFILE.roleTagline}
-                </dd>
-              </div>
-              <div className="sm:col-span-2">
-                <dt className="font-mono text-xs tracking-wider uppercase text-ink">
-                  LOCATION
-                </dt>
-                <dd className="font-mono text-xs font-bold text-ink mt-0.5">
-                  {PROFILE.location}
-                </dd>
-              </div>
-            </dl>
-
-            <div className="space-y-3 text-xs sm:text-sm leading-relaxed font-mono text-ink">
-              {PROFILE.bio.map((paragraph, idx) => (
-                <p key={idx}>{paragraph}</p>
-              ))}
-            </div>
-          </article>
-
-          {/* Panel 2: Specializations (5 cols) */}
-          <article
-            data-content-box="about-panel-b"
-            className="about-manga-panel lg:col-span-5 bg-paper-pure border-3 border-ink p-6 shadow-[5px_5px_0px_var(--ink)] flex flex-col justify-between"
+          <MangaPanel
+            panelCode="02.B // FOCUS"
+            panelTitle="OPERATIONAL DOMAINS"
+            tiltDeg={1.2}
           >
-            <div>
-              <div className="flex items-center justify-between border-b-2 border-ink pb-2 mb-4">
-                <span className="font-mono text-xs font-bold tracking-widest uppercase">
-                  PANEL 02.B // FOCUS AREAS
-                </span>
-                <span className="w-2.5 h-2.5 bg-ink inline-block" />
-              </div>
-
-              <ul className="space-y-2.5">
+            <div
+              ref={(el) => {
+                secRefs.current[1] = el;
+              }}
+            >
+              <ul className="grid grid-cols-2 lg:grid-cols-1 gap-1">
                 {PROFILE.interests.map((interest, idx) => (
                   <li
                     key={idx}
-                    className="flex items-center gap-3 border border-ink p-2.5 bg-paper"
+                    className="flex items-center gap-1.5 border border-ink px-2 py-0.5 bg-paper text-[11px] font-mono font-bold text-ink"
                   >
-                    <span className="font-mono text-xs font-bold bg-ink text-paper-pure px-1.5 py-0.5">
+                    <span className="bg-ink text-paper-pure px-1 text-[9px]">
                       0{idx + 1}
                     </span>
-                    <span className="font-mono text-xs font-bold text-ink">{interest}</span>
+                    <span className="truncate">{interest}</span>
                   </li>
                 ))}
               </ul>
             </div>
+          </MangaPanel>
+        </div>
 
-            <div className="mt-6 pt-3 border-t-2 border-ink flex items-center justify-between">
-              <span className="font-mono text-xs tracking-wider uppercase">
-                CLEARANCE
-              </span>
-              <span className="font-display text-sm tracking-widest text-red">
-                PRIORITY // AAA
-              </span>
-            </div>
-          </article>
+        {/* Center Void (4 cols): OPEN to live 3D WebGL Observation Room porthole & Red Orb */}
+        <div
+          className="hidden lg:flex lg:col-span-4 pointer-events-none items-center justify-center"
+          aria-hidden="true"
+        />
 
-          {/* Panel 3: Evangelion Homage Dossier Card (8 cols) */}
-          <article
-            data-content-box="about-panel-c"
-            className="about-manga-panel lg:col-span-8 bg-paper-pure border-3 border-ink p-6 shadow-[5px_5px_0px_var(--ink)]"
+        {/* Right Column (4 cols): Evangelion Record & Architectural Note */}
+        <div className="lg:col-span-4 flex flex-col gap-2 sm:gap-3">
+          <MangaPanel
+            panelCode="02.C // RECORD"
+            panelTitle={PROFILE.evaFanDossier.syncNote}
+            tiltDeg={1.6}
+            bleedEdge="right"
           >
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b-2 border-red pb-2 mb-4">
-              <span className="font-display text-sm tracking-[0.18em] uppercase text-ink">
-                PANEL 02.C // EVANGELION RECORD
-              </span>
-              <span className="bg-red text-paper-pure font-mono text-xs font-bold px-2 py-0.5">
-                {PROFILE.evaFanDossier.syncNote}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <div className="border-2 border-ink p-3 bg-paper">
-                <div className="font-mono text-xs tracking-wider uppercase text-ink">
+            <div
+              ref={(el) => {
+                secRefs.current[2] = el;
+              }}
+              className="space-y-1.5"
+            >
+              <div className="border border-ink p-1.5 bg-paper">
+                <div className="font-mono text-[9px] sm:text-[10px] tracking-wider uppercase text-red font-bold">
                   FAVORITE EPISODE // 記録
                 </div>
-                <div className="font-serif font-bold text-sm sm:text-base text-ink mt-1">
+                <div className="font-serif font-bold text-xs text-ink truncate mt-0.5">
                   {PROFILE.evaFanDossier.favoriteEpisode}
                 </div>
               </div>
-
-              <div className="border-2 border-ink p-3 bg-paper">
-                <div className="font-mono text-xs tracking-wider uppercase text-ink">
+              <div className="border border-ink p-1.5 bg-paper">
+                <div className="font-mono text-[9px] sm:text-[10px] tracking-wider uppercase text-ink font-bold">
                   FAVORITE CHARACTER // 人物
                 </div>
-                <div className="font-serif font-bold text-sm sm:text-base text-ink mt-1">
+                <div className="font-serif font-bold text-xs text-ink truncate mt-0.5">
                   {PROFILE.evaFanDossier.favoriteCharacter}
                 </div>
               </div>
+              <blockquote className="border-l-2 border-red pl-2 py-0.5 font-serif italic text-[11px] text-ink line-clamp-2">
+                {PROFILE.evaFanDossier.favoriteQuote}
+              </blockquote>
             </div>
+          </MangaPanel>
 
-            <blockquote className="border-l-4 border-red pl-4 py-1 font-serif italic text-sm sm:text-base text-ink">
-              {PROFILE.evaFanDossier.favoriteQuote}
-            </blockquote>
-          </article>
-
-          {/* Panel 4: Hand-inked spot + Observation Log (4 cols) */}
-          <div
-            data-content-box="about-panel-d"
-            className="about-manga-panel lg:col-span-4 flex flex-col justify-between gap-4 bg-paper-pure border-3 border-ink p-5 shadow-[5px_5px_0px_var(--ink)]"
+          <MangaPanel
+            panelCode="02.D // LOG"
+            panelTitle="ARCHITECTURAL NOTE"
+            tiltDeg={-1.2}
           >
-            <div>
-              <div className="font-mono text-xs tracking-[0.18em] text-red font-bold uppercase mb-2">
-                OBSERVATION LOG
-              </div>
-              <p className="font-serif text-base sm:text-lg font-bold leading-snug text-ink">
+            <div
+              ref={(el) => {
+                secRefs.current[3] = el;
+              }}
+            >
+              <p className="font-serif font-bold text-xs text-ink leading-snug">
                 “Every system interface is a narrative panel. Precision and atmosphere are inseparable.”
               </p>
+              <div className="mt-1.5 pt-1 border-t border-ink/20 flex items-center justify-between font-mono text-[9px] sm:text-[10px] font-bold uppercase">
+                <span>CLEARANCE: AAA</span>
+                <span className="text-red">CONTINUOUS FLIGHT →</span>
+              </div>
             </div>
-            <div className="border-t-2 border-ink pt-3 flex items-center justify-between">
-              <InkSpotIllustration motif="stone-cairn" seed={209} className="w-28 h-16" />
-              <span className="font-mono text-xs font-bold uppercase text-ink">
-                CH.02 // END
-              </span>
-            </div>
-          </div>
+          </MangaPanel>
         </div>
       </div>
-    </section>
+    </MangaPinnedChapter>
   );
 };

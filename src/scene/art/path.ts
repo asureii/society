@@ -1,17 +1,18 @@
 /**
  * STEPPING-STONE PATH LAYER GENERATOR (src/scene/art/path.ts)
  *
- * Spec (B4.5 & C2):
+ * Spec (B4.5, Part B1, & Part E5):
  * - Slabs in forced perspective receding toward the Twin Monolith (x ~ 0.56) from center-right.
  * - Keeps the left ~35% of the lower viewport open white/ground for the unboxed hero typography.
  * - Each slab is an irregular chipped quad with slight random rotation, a nearly white top,
  *   a densely vertical-hatched front face, and a cast shadow on the ground.
- * - Size and spacing shrink with distance; horizontal ground hatching shows in the gaps.
+ * - Subtle cracked-ground fissures, horizontal ground hatching, and pebble stipple between stones.
  */
 
 import { THEME_COLORS } from '../../config/theme';
 import { hatchRegion } from './hatch';
 import {
+  drawInkDot,
   drawInkStroke,
   fillRoughenedPolygon,
   outlinePolygonWithInk,
@@ -55,20 +56,60 @@ export function renderPathVariant(
     const chipL = structuralRng.range(-7, 7) * persp;
     const chipR = structuralRng.range(-7, 7) * persp;
 
-    // 1. Sparse horizontal ground hatching in the gap beneath/around the stone
+    // 1. Cracked-ground hatching & fissure lines in the gap between stones (Part B1)
     const groundGapPoly: Point2D[] = [
       [centerX - slabW * 0.68, centerY + frontThicknessH],
       [centerX + slabW * 0.68, centerY + frontThicknessH],
-      [centerX + slabW * 0.62, centerY + frontThicknessH + 16 * persp + 3],
-      [centerX - slabW * 0.62, centerY + frontThicknessH + 16 * persp + 3],
+      [centerX + slabW * 0.62, centerY + frontThicknessH + 18 * persp + 3],
+      [centerX - slabW * 0.62, centerY + frontThicknessH + 18 * persp + 3],
     ];
     hatchRegion(ctx, groundGapPoly, rng, {
       angleRad: 0.02,
-      baseSpacing: Math.max(4.0, 8.5 * persp),
+      baseSpacing: Math.max(4.0, 8.2 * persp),
       baseWidth: Math.max(1.0, 1.8 * persp),
       curvature: 0.03,
-      toneAt: (u, v) => (1.0 - v) * Math.sin(u * Math.PI) * 0.62,
+      toneAt: (u, v) => (1.0 - v) * Math.sin(u * Math.PI) * 0.65,
     });
+
+    // Branching ground crack between stepping stones
+    if (idx > 0 && idx <= 6) {
+      const gx = centerX + structuralRng.range(-slabW * 0.38, slabW * 0.38);
+      const gy = centerY + frontThicknessH + 4 * persp;
+      const crackPts: Point2D[] = [
+        [gx, gy],
+        [gx + 16 * persp, gy + 5 * persp],
+        [gx + 34 * persp, gy + 2 * persp],
+        [gx + 48 * persp, gy + 7 * persp],
+      ];
+      drawInkStroke(ctx, crackPts, rng, {
+        baseWidth: Math.max(1.0, 1.7 * persp),
+        taperScale: 1.3,
+        wobbleScale: 0.65,
+        doubleChance: 0.1,
+      });
+      // Forked sub-crack
+      drawInkStroke(
+        ctx,
+        [
+          crackPts[1],
+          [crackPts[1][0] + 10 * persp, crackPts[1][1] + 7 * persp],
+        ],
+        rng,
+        { baseWidth: Math.max(0.9, 1.2 * persp), taperScale: 1.35, doubleChance: 0 },
+      );
+
+      // Small gravel stipple dots around the crack
+      for (let p = 0; p < 4; p++) {
+        drawInkDot(
+          ctx,
+          gx + structuralRng.range(-12, 42) * persp,
+          gy + structuralRng.range(-2, 11) * persp,
+          Math.max(0.9, rng.range(1.1, 2.2) * persp),
+          rng,
+          THEME_COLORS.ink,
+        );
+      }
+    }
 
     // 2. Cast shadow polygon under front-right of stone
     const shadowPoly: Point2D[] = [
