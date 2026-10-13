@@ -123,6 +123,7 @@ const EVA_REVEAL_FRAG = /* glsl */ `
   uniform float uIsBackground;
   uniform vec3 uColorPaper;
   uniform vec3 uColorInk;
+  uniform vec3 uColorRed;
 
   void main() {
     vec4 tex = texture2D(uTex, vUv);
@@ -140,8 +141,9 @@ const EVA_REVEAL_FRAG = /* glsl */ `
 
     float alpha = tex.a * edgeMask;
     if (alpha < 0.05) discard;
+    bool isRed = (tex.r - max(tex.g, tex.b)) > 0.18;
     float luma = dot(tex.rgb, vec3(0.299, 0.587, 0.114));
-    vec3 col = luma > 0.22 ? uColorPaper : uColorInk;
+    vec3 col = isRed ? uColorRed : (luma > 0.22 ? uColorPaper : uColorInk);
     gl_FragColor = vec4(col, 1.0);
   }
 `;
@@ -349,7 +351,7 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
     headY: { value: 0, velocity: 0 } as SpringState1D,
     headRotDeg: { value: 0, velocity: 0 } as SpringState1D,
     headScale: { value: 1, velocity: 0 } as SpringState1D,
-    jawDeg: { value: 11.5, velocity: 0 } as SpringState1D,
+    jawDeg: { value: 0, velocity: 0 } as SpringState1D,
   });
 
   const presenceTransitionRef = useRef<{
@@ -395,6 +397,7 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
     uIsBackground: { value: isBackground ? 1.0 : 0.0 },
     uColorPaper: { value: new THREE.Vector3(...THEME_VEC3.paper) },
     uColorInk: { value: new THREE.Vector3(...THEME_VEC3.ink) },
+    uColorRed: { value: new THREE.Vector3(...THEME_VEC3.red) },
   });
 
   const bgUniforms = useMemo(() => makeRevealUniforms(true), [dummyTex]);
@@ -636,21 +639,21 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
         const leftWorldX = -vWAtZero * 0.5;
         rigRootGroupRef.current.scale.set(rigScale, rigScale, 1);
         rigRootGroupRef.current.position.set(
-          leftWorldX + P_SIZE * 0.5 * rigScale - 0.18 * desiredHWorld,
-          bottomWorldY + P_SIZE * 0.5 * rigScale - 0.05 * desiredHWorld,
+          leftWorldX + P_SIZE * 0.5 * rigScale - 0.04 * desiredHWorld,
+          bottomWorldY + P_SIZE * 0.5 * rigScale - 0.04 * desiredHWorld,
           0
         );
       } else {
-        // Desktop: bust spans ~86% of stage height, cropped at left and bottom edges
-        const desktopStageWorldH = vHAtZero * 0.86;
+        // Desktop: bust spans ~88% of stage height, anchored flush at left and bottom edges
+        const desktopStageWorldH = vHAtZero * 0.88;
         const desiredHWorld = desktopStageWorldH / EVA_PROPORTIONS.visibleHeads;
         const rigScale = desiredHWorld / EVA_CONFIG.headUnitWorld;
         const bottomWorldY = persp.position.y - vHAtZero * 0.5;
         const leftWorldX = -vWAtZero * 0.5;
         rigRootGroupRef.current.scale.set(rigScale, rigScale, 1);
         rigRootGroupRef.current.position.set(
-          leftWorldX + P_SIZE * 0.5 * rigScale - 0.22 * desiredHWorld,
-          bottomWorldY + P_SIZE * 0.5 * rigScale - 0.08 * desiredHWorld,
+          leftWorldX + P_SIZE * 0.5 * rigScale - 0.04 * desiredHWorld,
+          bottomWorldY + P_SIZE * 0.5 * rigScale - 0.04 * desiredHWorld,
           0
         );
       }
@@ -768,7 +771,7 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
         PIVOT_JAW[1] - PIVOT_HEAD[1] + jawShakeY,
         0.01
       );
-      jawGroupRef.current.rotation.z = THREE.MathUtils.degToRad(-curJawDeg);
+      jawGroupRef.current.rotation.z = THREE.MathUtils.degToRad(-curJawDeg * 0.15);
     }
 
     if (pupilMeshRef.current) {

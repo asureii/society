@@ -7,142 +7,142 @@
       "part": "torso",
       "px": {
         "xMin": 0,
-        "yMin": 815,
-        "xMax": 370,
+        "yMin": 689,
+        "xMax": 612,
         "yMax": 1023,
-        "width": 370,
-        "height": 208
+        "width": 612,
+        "height": 334
       },
       "hUnits": {
         "xMinH": 0,
-        "yMinH": 2.427,
-        "xMaxH": 1.102,
+        "yMinH": 2.052,
+        "xMaxH": 1.823,
         "yMaxH": 3.047,
-        "widthH": 1.102,
-        "heightH": 0.62
+        "widthH": 1.823,
+        "heightH": 0.995
       }
     },
     "neck": {
       "part": "neck",
       "px": {
-        "xMin": 153,
-        "yMin": 476,
-        "xMax": 545,
-        "yMax": 833,
-        "width": 392,
-        "height": 357
+        "xMin": 0,
+        "yMin": 444,
+        "xMax": 569,
+        "yMax": 926,
+        "width": 569,
+        "height": 482
       },
       "hUnits": {
-        "xMinH": 0.456,
-        "yMinH": 1.418,
-        "xMaxH": 1.623,
-        "yMaxH": 2.481,
-        "widthH": 1.168,
-        "heightH": 1.063
+        "xMinH": 0,
+        "yMinH": 1.322,
+        "xMaxH": 1.695,
+        "yMaxH": 2.758,
+        "widthH": 1.695,
+        "heightH": 1.436
       }
     },
     "head": {
       "part": "head",
       "px": {
-        "xMin": 298,
-        "yMin": 3,
-        "xMax": 772,
-        "yMax": 565,
-        "width": 474,
-        "height": 562
+        "xMin": 0,
+        "yMin": 54,
+        "xMax": 948,
+        "yMax": 612,
+        "width": 948,
+        "height": 558
       },
       "hUnits": {
-        "xMinH": 0.888,
-        "yMinH": 0.009,
-        "xMaxH": 2.299,
-        "yMaxH": 1.683,
-        "widthH": 1.412,
-        "heightH": 1.674
+        "xMinH": 0,
+        "yMinH": 0.161,
+        "xMaxH": 2.824,
+        "yMaxH": 1.823,
+        "widthH": 2.824,
+        "heightH": 1.662
       }
     },
     "jaw": {
       "part": "jaw",
       "px": {
-        "xMin": 431,
-        "yMin": 482,
-        "xMax": 593,
-        "yMax": 600,
-        "width": 162,
-        "height": 118
+        "xMin": 429,
+        "yMin": 473,
+        "xMax": 794,
+        "yMax": 748,
+        "width": 365,
+        "height": 275
       },
       "hUnits": {
-        "xMinH": 1.284,
-        "yMinH": 1.436,
-        "xMaxH": 1.766,
-        "yMaxH": 1.787,
-        "widthH": 0.483,
-        "heightH": 0.351
+        "xMinH": 1.278,
+        "yMinH": 1.409,
+        "xMaxH": 2.365,
+        "yMaxH": 2.228,
+        "widthH": 1.087,
+        "heightH": 0.819
       }
     },
     "eye": {
       "part": "eye",
       "px": {
-        "xMin": 448,
-        "yMin": 403,
-        "xMax": 563,
-        "yMax": 460,
-        "width": 115,
-        "height": 57
+        "xMin": 533,
+        "yMin": 390,
+        "xMax": 606,
+        "yMax": 427,
+        "width": 73,
+        "height": 37
       },
       "hUnits": {
-        "xMinH": 1.334,
-        "yMinH": 1.2,
-        "xMaxH": 1.677,
-        "yMaxH": 1.37,
-        "widthH": 0.343,
-        "heightH": 0.17
+        "xMinH": 1.588,
+        "yMinH": 1.162,
+        "xMaxH": 1.805,
+        "yMaxH": 1.272,
+        "widthH": 0.217,
+        "heightH": 0.11
       }
     },
     "pupil": {
       "part": "pupil",
       "px": {
-        "xMin": 502,
-        "yMin": 427,
-        "xMax": 512,
-        "yMax": 439,
+        "xMin": 564,
+        "yMin": 402,
+        "xMax": 574,
+        "yMax": 413,
         "width": 10,
-        "height": 12
+        "height": 11
       },
       "hUnits": {
-        "xMinH": 1.495,
-        "yMinH": 1.272,
-        "xMaxH": 1.525,
-        "yMaxH": 1.308,
+        "xMinH": 1.68,
+        "yMinH": 1.197,
+        "xMaxH": 1.71,
+        "yMaxH": 1.23,
         "widthH": 0.03,
-        "heightH": 0.036
+        "heightH": 0.033
       }
     },
     "drips": {
       "part": "drips",
       "px": {
-        "xMin": 128,
-        "yMin": 878,
-        "xMax": 186,
+        "xMin": 204,
+        "yMin": 952,
+        "xMax": 208,
         "yMax": 1023,
-        "width": 58,
-        "height": 145
+        "width": 4,
+        "height": 71
       },
       "hUnits": {
-        "xMinH": 0.381,
-        "yMinH": 2.615,
-        "xMaxH": 0.554,
+        "xMinH": 0.608,
+        "yMinH": 2.836,
+        "xMaxH": 0.62,
         "yMaxH": 3.047,
-        "widthH": 0.173,
-        "heightH": 0.432
+        "widthH": 0.012,
+        "heightH": 0.211
       }
     }
   },
   "measuredRatios": {
-    "headToVisibleHeightRatio": 0.4885,
+    "headToVisibleHeightRatio": 0.4592,
     "hornLengthH": 1.32,
-    "hornAngleAboveHorizontalDeg": 56,
-    "neckLeanDeg": 34,
-    "neckWidthH": 0.52,
-    "collarWidthH": 1.25
+    "hornAngleAboveHorizontalDeg": 55,
+    "neckLeanDeg": 28,
+    "neckWidthH": 0.78,
+    "collarWidthH": 1.42
   }
 }

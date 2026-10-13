@@ -4,6 +4,7 @@ import {
   drawInkStroke,
   fillRoughenedPolygon,
   type Canvas2DContext,
+  type Point2D,
 } from '../../scene/art/inkBrush.ts';
 import { createRng } from '../../scene/art/rng.ts';
 import {
@@ -12,15 +13,16 @@ import {
   type AnyCanvas,
   type EvaDrawOrderRecorder,
 } from './evaSurface.ts';
-import { EVA_SKELETON, hToPx, polyHToPx, type PointH } from './skeleton.ts';
+import { polyUvToPx, uvToPx, type PointUV } from './skeleton.ts';
 
 /**
- * 1. MUSCULAR NECK, DARK MESH & BRIGHT CURVED CHEST PLATE (`neck`)
- * Matches official bust reference artwork translated into dashboard palette:
- * - Dark fine-dot mesh texture in the throat recess between jaw and chest plate
- * - Bright paper-white curved chest plate (orange plate in ref) with heavy black outlines
- * - 2-3 parallel black groove lines following the smooth convex sweep of the plate
- * - Segmented cervical vertebrae plates along the dorsal nape
+ * 1. WIDE NECK AT THE BACK OF THE HEAD, NAPE ARMOR, DARK MESH & CURVED CHEST PLATE (`neck`)
+ * Exact 1-to-1 geometry matching the official Evangelion Unit-01 bust poster:
+ * - Neck spans from the left edge (u = 0.00) to the jaw-throat junction (u = 0.552) at the BACK of the head
+ * - Dorsal trapezius/nape armor plate at top-left with 3 parallel angled louver fins
+ * - Wide dark carbon-stipple mesh band between the head/nape and the chest plate
+ * - Sweeping curved white chest plate (orange plate in ref) curving from (0.512, 0.628) down-left to (0.185, 0.898)
+ *   with heavy black borders, central double groove channel, parallel grooves, and dark inset panels
  */
 export function drawEvaNeckLayer(
   ctx: Canvas2DContext,
@@ -31,200 +33,248 @@ export function drawEvaNeckLayer(
   const W = canvas.width;
   const H = canvas.height;
   const rng = createRng(seed);
-  const sk = EVA_SKELETON;
   const s = W / 1024;
 
   ctx.clearRect(0, 0, W, H);
 
-  const { joints } = sk;
-  const { neckTop, neckBase, throatTop, throatBot, napeTop, napeBot, jawThroatJunction } = joints;
+  const P = (pts: PointUV[]): Point2D[] => polyUvToPx(pts, W);
+  const U = (u: number, v: number): Point2D => uvToPx([u, v], W);
 
   // ---------------------------------------------------------------------------
-  // A. SLENDER ELONGATED MECHANICAL NECK SILHOUETTE (solid black ink base)
+  // A. WIDE NECK SILHOUETTE AT THE BACK OF THE HEAD (u = 0.00..0.552)
   // ---------------------------------------------------------------------------
-  const neckPolyH: PointH[] = [
-    // Throat connection under jaw
-    [jawThroatJunction[0], jawThroatJunction[1]],
-    [throatTop[0], throatTop[1]],
-    // Slender forward curve of the chest armor
-    [throatTop[0] + 0.12, throatTop[1] + 0.12],
-    [throatTop[0] + 0.16, throatTop[1] + 0.24],
-    [throatBot[0] + 0.04, throatBot[1] - 0.10],
-    [throatBot[0], throatBot[1]],
-    // Collar connection at base
-    [neckBase[0] + 0.08, neckBase[1] + 0.02],
-    [napeBot[0], napeBot[1]],
-    // Stepped dorsal vertebrae ascending to helmet cowl
-    [napeBot[0] - 0.04, napeBot[1] - 0.14],
-    [napeTop[0] - 0.02, napeTop[1] + 0.08],
-    [napeTop[0], napeTop[1]],
-    [neckTop[0] - 0.04, neckTop[1]],
+  const neckBaseUv: PointUV[] = [
+    [0.000, 0.440], // dorsal top-left under rear helmet cowl
+    [0.120, 0.435],
+    [0.425, 0.468], // under side capsule vent
+    [0.552, 0.618], // jaw-throat junction (mid-head, behind snout/jaw)
+    [0.512, 0.630], // front peak of curved chest plate
+    [0.435, 0.715], // chest curve descending
+    [0.320, 0.792],
+    [0.225, 0.898], // bottom tip of curved chest plate
+    [0.000, 0.898], // left edge bleed
   ];
-
-  fillInkSilhouetteWithFringe(ctx, polyHToPx(neckPolyH, W, sk), rng, 2.0 * s, 3.4 * s);
+  fillInkSilhouetteWithFringe(ctx, P(neckBaseUv), rng, 1.8 * s, 3.4 * s);
 
   // ---------------------------------------------------------------------------
-  // B. DARK MESH / FINE-DOT STIPPLE IN THROAT RECESS
-  // Between the jaw underside and the bright chest plate
+  // B. DARK MESH / FINE-DOT TEXTURE ACROSS UPPER NECK & THROAT RECESS
+  // Spans between the nape armor / head underside and the top of the chest plate
   // ---------------------------------------------------------------------------
-  const meshX0 = Math.round(hToPx([neckTop[0] - 0.06, 0], W, sk)[0]);
-  const meshX1 = Math.round(hToPx([throatTop[0] + 0.04, 0], W, sk)[0]);
-  const meshY0 = Math.round(hToPx([0, neckTop[1] + 0.04], W, sk)[1]);
-  const meshY1 = Math.round(hToPx([0, throatTop[1] + 0.12], W, sk)[1]);
   const dotStep = Math.max(5, Math.round(5.5 * s));
+  const yStart = Math.round(0.47 * H);
+  const yEnd = Math.round(0.64 * H);
 
-  for (let py = meshY0; py <= meshY1; py += dotStep) {
-    const rowOffset = ((py / dotStep) % 2) * (dotStep * 0.5);
-    for (let px = meshX0 + rowOffset; px <= meshX1; px += dotStep) {
-      // Check if point falls within the throat recess polygon
-      const u = (px / W) * sk.canvasSizeH;
-      const v = (py / H) * sk.canvasSizeH;
-      if (
-        u >= neckTop[0] - 0.06 &&
-        u <= throatTop[0] + 0.04 &&
-        v >= neckTop[1] + 0.04 &&
-        v <= throatTop[1] + 0.12
-      ) {
-        drawInkDot(ctx, px, py, 1.4 * s, rng, THEME_COLORS.paperPure);
+  for (let py = yStart; py <= yEnd; py += dotStep) {
+    const v = py / H;
+    const rowShift = ((py / dotStep) % 2) * (dotStep * 0.5);
+    for (let px = Math.round(0.01 * W + rowShift); px <= Math.round(0.55 * W); px += dotStep) {
+      const u = px / W;
+      // Upper bound: below nape plate on left, below head/jaw on right
+      const topBoundV =
+        u < 0.24 ? 0.555 - u * 0.25 : u < 0.42 ? 0.490 : 0.490 + (u - 0.42) * 0.95;
+      // Lower bound: above the curved chest plate
+      const botBoundV =
+        u < 0.12 ? 0.612 : u < 0.38 ? 0.612 - (u - 0.12) * 0.35 : 0.520 + (u - 0.38) * 0.85;
+
+      if (v >= topBoundV && v <= botBoundV && u <= 0.545) {
+        drawInkDot(ctx, px, py, 1.35 * s, rng, THEME_COLORS.paperPure);
       }
     }
   }
 
   // ---------------------------------------------------------------------------
-  // C. SLENDER BRIGHT WHITE CHEST PLATE (Orange plate in ref -> Paper White)
-  // Aerodynamic curved plate with heavy black outline and parallel black grooves
+  // C. DORSAL NAPE / TRAPEZIUS ARMOR PLATE (Top-left, u = 0.00..0.24, v = 0.435..0.562)
   // ---------------------------------------------------------------------------
-  const chestPlatePolyH: PointH[] = [
-    // Top inner corner under throat mesh
-    [throatTop[0] - 0.02, throatTop[1] + 0.04],
-    // Slender convex curve forward
-    [throatTop[0] + 0.10, throatTop[1] + 0.12],
-    [throatTop[0] + 0.14, throatTop[1] + 0.24],
-    [throatBot[0] + 0.02, throatBot[1] - 0.10],
-    // Lower front tip
-    [throatBot[0] - 0.02, throatBot[1] - 0.02],
-    // Inner contour along collar
-    [neckBase[0] + 0.12, neckBase[1] - 0.04],
-    [neckBase[0] + 0.04, neckBase[1] - 0.16],
-    [throatTop[0] - 0.08, throatTop[1] + 0.18],
+  const napePlateUv: PointUV[] = [
+    [0.000, 0.442],
+    [0.115, 0.435],
+    [0.215, 0.468],
+    [0.238, 0.495],
+    [0.025, 0.562],
+    [0.000, 0.560],
   ];
+  fillInkSilhouetteWithFringe(ctx, P(napePlateUv), rng, 1.4 * s, 2.8 * s);
 
-  // Fill plate with bright paper pure (#FAFAF8)
-  fillRoughenedPolygon(
+  // Crisp white negative seams defining the nape armor rim and 3 angled louver fins
+  carveNegativeSeam(
     ctx,
-    polyHToPx(chestPlatePolyH, W, sk),
+    P([
+      [0.005, 0.470],
+      [0.135, 0.462],
+      [0.210, 0.488],
+      [0.025, 0.552],
+    ]),
     rng,
-    THEME_COLORS.paperPure,
-    1.0 * s
+    { baseWidth: 2.2 * s, wobbleScale: 0.15, doubleChance: 0 }
   );
 
-  // Heavy black outline surrounding the bright chest plate
-  const chestPlatePx = polyHToPx(chestPlatePolyH, W, sk);
-  drawInkStroke(ctx, [...chestPlatePx, chestPlatePx[0]], rng, {
-    baseWidth: 3.0 * s,
+  // 3 parallel angled louver slots inside the nape armor (matching light blue louvers in ref)
+  for (const [u0, v0, u1, v1] of [
+    [0.045, 0.535, 0.082, 0.482],
+    [0.085, 0.524, 0.118, 0.478],
+    [0.125, 0.512, 0.152, 0.476],
+  ] as const) {
+    carveNegativeSeam(
+      ctx,
+      P([
+        [u0, v0],
+        [u1, v1],
+      ]),
+      rng,
+      { baseWidth: 4.2 * s, wobbleScale: 0.1, doubleChance: 0 }
+    );
+  }
+
+  // Two oval mechanical buttons on top of the nape plate
+  const napeBtn1 = U(0.045, 0.454);
+  const napeBtn2 = U(0.088, 0.452);
+  drawInkDot(ctx, napeBtn1[0], napeBtn1[1], 4.5 * s, rng, THEME_COLORS.paperPure);
+  drawInkDot(ctx, napeBtn2[0], napeBtn2[1], 4.5 * s, rng, THEME_COLORS.paperPure);
+
+  // ---------------------------------------------------------------------------
+  // D. BIG SWEEPING CURVED CHEST & SHOULDER PLATE (Orange plate in ref -> Paper White #FAFAF8)
+  // ---------------------------------------------------------------------------
+  const chestPlateUv: PointUV[] = [
+    [0.000, 0.615], // left shoulder tab
+    [0.105, 0.612],
+    [0.118, 0.612],
+    [0.375, 0.520], // ascending upper-left slope
+    [0.392, 0.518], // upper-right throat cap
+    [0.455, 0.524],
+    [0.512, 0.628], // front-most chest peak
+    [0.435, 0.715], // sweeping convex front curve
+    [0.320, 0.792],
+    [0.225, 0.898], // bottom point of chest plate
+    [0.185, 0.898],
+    [0.165, 0.808], // lower-left inner curve
+    [0.095, 0.720],
+    [0.000, 0.690],
+  ];
+  fillRoughenedPolygon(ctx, P(chestPlateUv), rng, THEME_COLORS.paperPure, 1.0 * s);
+
+  // Heavy black outline around the entire curved chest plate
+  drawInkStroke(ctx, [...P(chestPlateUv), U(0.000, 0.615)], rng, {
+    baseWidth: 4.2 * s,
     color: THEME_COLORS.ink,
     wobbleScale: 0.2,
+    doubleChance: 0,
   });
 
-  // ---------------------------------------------------------------------------
-  // D. PARALLEL BLACK GROOVE LINES FOLLOWING THE CURVE OF THE CHEST PLATE
-  // ---------------------------------------------------------------------------
-  const groove1H: PointH[] = [
-    [throatTop[0] + 0.06, throatTop[1] + 0.10],
-    [throatTop[0] + 0.10, throatTop[1] + 0.20],
-    [throatBot[0] - 0.02, throatBot[1] - 0.12],
-    [throatBot[0] - 0.04, throatBot[1] - 0.06],
+  // 1. Central double black dividing groove channel (splits chest plate into left & right halves)
+  const centerGrooveLeftUv: PointUV[] = [
+    [0.376, 0.520],
+    [0.316, 0.662],
+    [0.176, 0.788],
+    [0.186, 0.896],
   ];
-  const groove2H: PointH[] = [
-    [throatTop[0], throatTop[1] + 0.14],
-    [throatTop[0] + 0.04, throatTop[1] + 0.24],
-    [throatBot[0] - 0.06, throatBot[1] - 0.10],
-    [throatBot[0] - 0.08, throatBot[1] - 0.04],
+  const centerGrooveRightUv: PointUV[] = [
+    [0.390, 0.520],
+    [0.332, 0.668],
+    [0.194, 0.794],
+    [0.204, 0.896],
   ];
-  const groove3H: PointH[] = [
-    [throatTop[0] - 0.06, throatTop[1] + 0.18],
-    [throatTop[0] - 0.02, throatTop[1] + 0.28],
-    [neckBase[0] + 0.08, neckBase[1] - 0.10],
-    [neckBase[0] + 0.06, neckBase[1] - 0.04],
-  ];
-  drawInkStroke(ctx, polyHToPx(groove1H, W, sk), rng, {
-    baseWidth: 2.0 * s,
+  drawInkStroke(ctx, P(centerGrooveLeftUv), rng, {
+    baseWidth: 3.4 * s,
     color: THEME_COLORS.ink,
     wobbleScale: 0.15,
+    doubleChance: 0,
   });
-  drawInkStroke(ctx, polyHToPx(groove2H, W, sk), rng, {
-    baseWidth: 1.8 * s,
+  drawInkStroke(ctx, P(centerGrooveRightUv), rng, {
+    baseWidth: 3.4 * s,
     color: THEME_COLORS.ink,
     wobbleScale: 0.15,
-  });
-  drawInkStroke(ctx, polyHToPx(groove3H, W, sk), rng, {
-    baseWidth: 1.6 * s,
-    color: THEME_COLORS.ink,
-    wobbleScale: 0.15,
+    doubleChance: 0,
   });
 
-  // Facet division line across lower chest plate
+  // 2. Parallel black contour groove following the outer convex curve
+  const outerContourGrooveUv: PointUV[] = [
+    [0.442, 0.526],
+    [0.490, 0.626],
+    [0.415, 0.704],
+    [0.304, 0.778],
+    [0.215, 0.884],
+  ];
+  drawInkStroke(ctx, P(outerContourGrooveUv), rng, {
+    baseWidth: 2.6 * s,
+    color: THEME_COLORS.ink,
+    wobbleScale: 0.15,
+    doubleChance: 0,
+  });
+
+  // 3. Parallel black contour groove following the upper-left diagonal slope
+  const innerContourGrooveUv: PointUV[] = [
+    [0.125, 0.618],
+    [0.355, 0.538],
+    [0.302, 0.656],
+    [0.168, 0.782],
+  ];
+  drawInkStroke(ctx, P(innerContourGrooveUv), rng, {
+    baseWidth: 2.4 * s,
+    color: THEME_COLORS.ink,
+    wobbleScale: 0.15,
+    doubleChance: 0,
+  });
+
+  // 4. Recessed dark geometric panels inside the chest plate (matching brown recesses in ref)
+  const leftRecessUv: PointUV[] = [
+    [0.205, 0.635],
+    [0.300, 0.618],
+    [0.288, 0.662],
+    [0.195, 0.758],
+    [0.220, 0.678],
+  ];
+  fillRoughenedPolygon(ctx, P(leftRecessUv), rng, THEME_COLORS.ink, 0.8 * s);
+
+  const rightUpperRecessUv: PointUV[] = [
+    [0.394, 0.534],
+    [0.432, 0.538],
+    [0.430, 0.606],
+    [0.376, 0.604],
+  ];
+  fillRoughenedPolygon(ctx, P(rightUpperRecessUv), rng, THEME_COLORS.ink, 0.8 * s);
+
+  // Additional angular facet lines on the right half of the chest plate
   drawInkStroke(
     ctx,
-    polyHToPx(
-      [
-        [throatTop[0] - 0.06, throatTop[1] + 0.22],
-        [throatTop[0] + 0.10, throatTop[1] + 0.18],
-      ],
-      W,
-      sk
-    ),
+    P([
+      [0.345, 0.652],
+      [0.425, 0.612],
+      [0.478, 0.630],
+    ]),
     rng,
-    {
-      baseWidth: 2.0 * s,
-      color: THEME_COLORS.ink,
-      wobbleScale: 0.15,
-      doubleChance: 0,
-      breakChance: 0,
-      imperfectJoin: false,
-    }
+    { baseWidth: 2.2 * s, color: THEME_COLORS.ink, wobbleScale: 0.12, doubleChance: 0 }
+  );
+  drawInkStroke(
+    ctx,
+    P([
+      [0.335, 0.675],
+      [0.375, 0.720],
+      [0.425, 0.698],
+    ]),
+    rng,
+    { baseWidth: 2.0 * s, color: THEME_COLORS.ink, wobbleScale: 0.12, doubleChance: 0 }
   );
 
-  // ---------------------------------------------------------------------------
-  // E. DORSAL NAPE VERTEBRAE PLATES (4 segmented plates)
-  // ---------------------------------------------------------------------------
-  const napeSeamsH: PointH[][] = [
-    [
-      [napeTop[0] + 0.02, napeTop[1] + 0.06],
-      [napeTop[0] + 0.16, napeTop[1] + 0.10],
-    ],
-    [
-      [napeTop[0] - 0.02, napeTop[1] + 0.18],
-      [napeTop[0] + 0.14, napeTop[1] + 0.22],
-    ],
-    [
-      [napeBot[0] + 0.04, napeBot[1] - 0.12],
-      [napeBot[0] + 0.18, napeBot[1] - 0.08],
-    ],
-    // Diagonal biomechanical cervical panel seams on black neck core
-    [
-      [napeTop[0] + 0.04, napeTop[1] + 0.14],
-      [throatTop[0] - 0.14, throatTop[1] + 0.10],
-    ],
-    [
-      [napeBot[0] + 0.02, napeBot[1] - 0.14],
-      [neckBase[0] + 0.06, neckBase[1] - 0.10],
-    ],
-  ];
-  for (const ns of napeSeamsH) {
-    carveNegativeSeam(ctx, polyHToPx(ns, W, sk), rng, {
-      baseWidth: 2.0 * s,
-      wobbleScale: 0.25,
-    });
-  }
+  // Left shoulder tab step seam
+  drawInkStroke(
+    ctx,
+    P([
+      [0.105, 0.612],
+      [0.095, 0.720],
+    ]),
+    rng,
+    { baseWidth: 3.2 * s, color: THEME_COLORS.ink, wobbleScale: 0.12, doubleChance: 0 }
+  );
 
   recorder?.captureStage(canvas, 0.22, 0.32, 'bottom-up');
 }
 
 /**
- * 2. UPPER CHEST & CHUNKY SEGMENTED COLLAR ARMOR (`torso`)
- * Matches the bust reference: collar rim, pectoral plates, and shoulder mount
- * cropped cleanly at the bottom and left edges.
+ * 2. CHUNKY SEGMENTED LOWER SHOULDER & COLLAR ARMOR (`torso`)
+ * Exact 1-to-1 geometry matching the lower portion of the Evangelion Unit-01 bust poster:
+ * - Segmented black/purple armor blocks on the lower-left (u = 0.00..0.28, v = 0.69..1.00)
+ * - Angular red V-fin accent at the bottom-left corner (matching green fin in ref)
+ * - Forward lower chest strut descending from under the curved chest plate to (0.595, 1.00)
  */
 export function drawEvaTorsoLayer(
   ctx: Canvas2DContext,
@@ -235,85 +285,110 @@ export function drawEvaTorsoLayer(
   const W = canvas.width;
   const H = canvas.height;
   const rng = createRng(seed);
-  const sk = EVA_SKELETON;
   const s = W / 1024;
 
   ctx.clearRect(0, 0, W, H);
 
-  const { joints } = sk;
-  const { throatBot, neckBase, napeBot, collarCenter } = joints;
-  const cropY = sk.canvasSizeH;
+  const P = (pts: PointUV[]): Point2D[] => polyUvToPx(pts, W);
+  const U = (u: number, v: number): Point2D => uvToPx([u, v], W);
 
-  // Upper chest / collar silhouette bleeding off left and bottom
-  const chestPolyH: PointH[] = [
-    // Collar front under throat armor
-    [throatBot[0], throatBot[1]],
-    [collarCenter[0] + 0.28, collarCenter[1]],
-    [collarCenter[0] + 0.36, collarCenter[1] + 0.22],
-    // Front pectoral plate contour descending to bottom crop
-    [collarCenter[0] + 0.24, cropY],
-    // Bottom crop bleed to left
-    [0.0, cropY],
-    // Left crop bleed ascending to rear shoulder / trapezius
-    [0.0, napeBot[1] + 0.10],
-    [napeBot[0] - 0.18, napeBot[1] + 0.04],
-    [napeBot[0], napeBot[1]],
-    [neckBase[0] + 0.04, neckBase[1] + 0.08],
+  // ---------------------------------------------------------------------------
+  // A. LOWER TORSO & COLLAR SILHOUETTE (u = 0.00..0.60, v = 0.68..1.00)
+  // ---------------------------------------------------------------------------
+  const torsoSilhouetteUv: PointUV[] = [
+    [0.000, 0.685],
+    [0.335, 0.775], // emerges from under the curved white chest plate
+    [0.430, 0.885], // front collar strut angle
+    [0.595, 0.985], // bottom-right chest tip
+    [0.595, 1.000],
+    [0.000, 1.000],
   ];
+  fillInkSilhouetteWithFringe(ctx, P(torsoSilhouetteUv), rng, 2.0 * s, 3.6 * s);
 
-  fillInkSilhouetteWithFringe(ctx, polyHToPx(chestPolyH, W, sk), rng, 2.4 * s, 4.2 * s);
+  // ---------------------------------------------------------------------------
+  // B. DARK STIPPLE MESH IN LOWER COLLAR RECESS (between chest plate tip & front strut)
+  // ---------------------------------------------------------------------------
+  const dotStep = Math.max(5, Math.round(5.8 * s));
+  for (let py = Math.round(0.78 * H); py <= Math.round(0.95 * H); py += dotStep) {
+    const v = py / H;
+    for (let px = Math.round(0.24 * W); px <= Math.round(0.36 * W); px += dotStep) {
+      const u = px / W;
+      if (u >= 0.25 && u <= 0.34 && v >= 0.79 && v <= 0.93) {
+        drawInkDot(ctx, px, py, 1.3 * s, rng, THEME_COLORS.paperPure);
+      }
+    }
+  }
 
-  // Chunky collar armor rim (white negative space)
-  carveNegativeSeam(
-    ctx,
-    polyHToPx(
-      [
-        [napeBot[0] - 0.10, napeBot[1] + 0.08],
-        [neckBase[0] + 0.04, neckBase[1] + 0.14],
-        [collarCenter[0] + 0.28, collarCenter[1] + 0.02],
-      ],
-      W,
-      sk
-    ),
-    rng,
-    { baseWidth: 3.0 * s, wobbleScale: 0.3 }
-  );
+  // ---------------------------------------------------------------------------
+  // C. CHUNKY SEGMENTED ARMOR SEAMS & LIGHT MECHANICAL COLLAR WEDGE
+  // ---------------------------------------------------------------------------
+  // Light hatched inner collar wedge under the chest plate point (u = 0.19..0.31, v = 0.84..0.97)
+  const collarWedgeUv: PointUV[] = [
+    [0.215, 0.885],
+    [0.255, 0.835],
+    [0.305, 0.945],
+    [0.285, 0.975],
+    [0.195, 0.925],
+  ];
+  fillRoughenedPolygon(ctx, P(collarWedgeUv), rng, THEME_COLORS.paperPure, 0.6 * s);
+  drawInkStroke(ctx, [...P(collarWedgeUv), U(0.215, 0.885)], rng, {
+    baseWidth: 2.8 * s,
+    color: THEME_COLORS.ink,
+    wobbleScale: 0.15,
+    doubleChance: 0,
+  });
 
-  // Upper pectoral chevron groove (the green/red chevron in reference)
-  carveNegativeSeam(
-    ctx,
-    polyHToPx(
-      [
-        [collarCenter[0] - 0.14, collarCenter[1] + 0.16],
-        [collarCenter[0] + 0.10, collarCenter[1] + 0.30],
-        [collarCenter[0] + 0.32, collarCenter[1] + 0.20],
-      ],
-      W,
-      sk
-    ),
-    rng,
-    { baseWidth: 2.6 * s, wobbleScale: 0.25 }
-  );
+  // White negative seams dividing the chunky lower-left purple armor blocks
+  const armorSeamsUv: PointUV[][] = [
+    // Upper-left shoulder block seam
+    [
+      [0.000, 0.735],
+      [0.105, 0.765],
+      [0.165, 0.885],
+      [0.000, 0.875],
+    ],
+    // Lower collar chevron plate seam
+    [
+      [0.000, 0.895],
+      [0.165, 0.905],
+      [0.285, 0.985],
+    ],
+    // Forward chest strut seam
+    [
+      [0.318, 0.885],
+      [0.365, 0.995],
+    ],
+    [
+      [0.330, 0.800],
+      [0.415, 0.895],
+      [0.575, 0.995],
+    ],
+  ];
+  for (const seam of armorSeamsUv) {
+    carveNegativeSeam(ctx, P(seam), rng, {
+      baseWidth: 2.4 * s,
+      wobbleScale: 0.2,
+      doubleChance: 0,
+    });
+  }
 
-  // Red accent notch at the collar chevron point (green accent in ref -> red)
-  const redNotchCenter = hToPx([collarCenter[0] + 0.10, collarCenter[1] + 0.30], W, sk);
-  drawInkDot(ctx, redNotchCenter[0], redNotchCenter[1], 4.5 * s, rng, THEME_COLORS.red);
-
-  // Rear shoulder collar pylon mounting plate seam at left
-  carveNegativeSeam(
-    ctx,
-    polyHToPx(
-      [
-        [napeBot[0] - 0.14, napeBot[1] + 0.14],
-        [napeBot[0] - 0.22, napeBot[1] + 0.38],
-        [0.05, napeBot[1] + 0.44],
-      ],
-      W,
-      sk
-    ),
-    rng,
-    { baseWidth: 2.4 * s, wobbleScale: 0.25 }
-  );
+  // ---------------------------------------------------------------------------
+  // D. BOTTOM-LEFT ANGULAR RED V-FIN ACCENT (Green V-fin in reference -> Red #D4141C)
+  // ---------------------------------------------------------------------------
+  const bottomVFinUv: PointUV[] = [
+    [0.028, 0.955],
+    [0.118, 0.925],
+    [0.085, 0.958],
+    [0.148, 1.000],
+    [0.068, 1.000],
+  ];
+  fillRoughenedPolygon(ctx, P(bottomVFinUv), rng, THEME_COLORS.red, 0.5 * s);
+  drawInkStroke(ctx, [...P(bottomVFinUv), U(0.028, 0.955)], rng, {
+    baseWidth: 2.6 * s,
+    color: THEME_COLORS.ink,
+    wobbleScale: 0.12,
+    doubleChance: 0,
+  });
 
   recorder?.captureStage(canvas, 0.14, 0.22, 'top-down');
 }

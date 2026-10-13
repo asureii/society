@@ -1,7 +1,9 @@
 import { THEME_COLORS } from '../../config/theme.ts';
 import {
+  drawInkStroke,
   fillRoughenedPolygon,
   type Canvas2DContext,
+  type Point2D,
 } from '../../scene/art/inkBrush.ts';
 import { createRng } from '../../scene/art/rng.ts';
 import {
@@ -10,15 +12,15 @@ import {
   type AnyCanvas,
   type EvaDrawOrderRecorder,
 } from './evaSurface.ts';
-import { EVA_SKELETON, polyHToPx, type PointH } from './skeleton.ts';
+import { polyUvToPx, uvToPx, type PointUV } from './skeleton.ts';
 
 /**
- * Draws Eva-01 `jaw` layer matching official bust reference artwork:
- * - Completely CLOSED jaw meeting upper face along clean mechanical seam line
- * - Zero teeth, zero serrations
- * - Angular red chin cap (#D4141C) at the blunt beak tip
- * - Smooth concave sweep on the underside of the jaw curving back to the neck
- * - Internal mandibular plate seam line
+ * Draws Eva-01 `jaw` layer with exact 1-to-1 geometry matching the official
+ * Evangelion Unit-01 bust reference poster:
+ * - Steep downward-sloping jawline descending from (0.425, 0.472) to (0.710, 0.725)
+ * - Actual articulated lower mandible plate with gonial jaw corner at (0.625, 0.678)
+ * - Sculpted upper mandible ridge with mechanical vent slits
+ * - Long, steep downward-pointing angular red chin wedge from (0.688, 0.590) to (0.775, 0.718)
  */
 export function drawEvaJawLayer(
   ctx: Canvas2DContext,
@@ -29,82 +31,113 @@ export function drawEvaJawLayer(
   const W = canvas.width;
   const H = canvas.height;
   const rng = createRng(seed);
-  const sk = EVA_SKELETON;
   const s = W / 1024;
 
   ctx.clearRect(0, 0, W, H);
 
-  const { joints } = sk;
-  const { jawHinge, chinTip, jawThroatJunction } = joints;
+  const P = (pts: PointUV[]): Point2D[] => polyUvToPx(pts, W);
+  const U = (u: number, v: number): Point2D => uvToPx([u, v], W);
 
   // ---------------------------------------------------------------------------
-  // 1. CLOSED LOWER MANDIBLE PLATE SILHOUETTE
-  // Upper rim meets steep snout; underside is a smooth concave curve to throat
+  // 1. SOLID BLACK LOWER MANDIBLE BASE SILHOUETTE (with real jaw corner & steep drop)
   // ---------------------------------------------------------------------------
-  const jawPolyH: PointH[] = [
-    // Hinge root at lower cheek
-    [jawHinge[0], jawHinge[1]],
-    // Upper jaw-seam rim fitting flush against upper snout
-    [jawHinge[0] + 0.18, jawHinge[1] + 0.02],
-    [chinTip[0] - 0.04, chinTip[1] - 0.06],
-    // Sharp pointed chin tip
-    [chinTip[0], chinTip[1]],
-    // Chin cap lower edge
-    [chinTip[0] - 0.06, chinTip[1] + 0.04],
-    // Underside of jaw: smooth concave sweep back to neck/throat junction
-    [chinTip[0] - 0.14, chinTip[1] + 0.02],
-    [chinTip[0] - 0.22, chinTip[1] - 0.04],
-    [jawThroatJunction[0] + 0.06, jawThroatJunction[1] - 0.02],
-    [jawThroatJunction[0], jawThroatJunction[1]],
-    // Rear mandible contour ascending back to hinge
-    [jawHinge[0] + 0.02, jawHinge[1] + 0.08],
+  const lowerJawUv: PointUV[] = [
+    [0.425, 0.472], // rear jaw hinge under capsule vent
+    [0.535, 0.545], // mid cheek-jaw seam
+    [0.640, 0.598], // front jaw seam
+    [0.688, 0.592], // top of chin wedge
+    [0.712, 0.724], // bottom of jaw behind chin wedge
+    [0.682, 0.722], // lower chin step
+    [0.625, 0.678], // prominent lower jaw gonial corner
+    [0.585, 0.645], // underside of jaw concave sweep
+    [0.552, 0.618], // jaw-throat junction (where neck mesh attaches)
+    [0.495, 0.548], // rear mandible ascending edge
   ];
-
-  fillInkSilhouetteWithFringe(ctx, polyHToPx(jawPolyH, W, sk), rng, 1.8 * s, 3.2 * s);
+  fillInkSilhouetteWithFringe(ctx, P(lowerJawUv), rng, 1.5 * s, 3.0 * s);
 
   // ---------------------------------------------------------------------------
-  // 2. ANGULAR RED CHIN CAP AT SHARP BEAK TIP
+  // 2. SCULPTED LIGHT UPPER-MANDIBLE RIDGE PLATE (matching lighter blue jaw ridge in ref)
   // ---------------------------------------------------------------------------
-  const chinCapPolyH: PointH[] = [
-    [chinTip[0] - 0.05, chinTip[1] - 0.08],
-    [chinTip[0], chinTip[1]],
-    [chinTip[0] - 0.06, chinTip[1] + 0.04],
-    [chinTip[0] - 0.10, chinTip[1] - 0.02],
+  const jawRidgeUv: PointUV[] = [
+    [0.455, 0.492],
+    [0.540, 0.548],
+    [0.642, 0.600],
+    [0.688, 0.592],
+    [0.706, 0.712],
+    [0.672, 0.675],
+    [0.610, 0.618],
+    [0.525, 0.568],
   ];
-  fillRoughenedPolygon(ctx, polyHToPx(chinCapPolyH, W, sk), rng, THEME_COLORS.red, 0.6 * s);
+  fillRoughenedPolygon(ctx, P(jawRidgeUv), rng, THEME_COLORS.paperPure, 0.6 * s);
+  drawInkStroke(ctx, [...P(jawRidgeUv), U(0.455, 0.492)], rng, {
+    baseWidth: 2.6 * s,
+    color: THEME_COLORS.ink,
+    wobbleScale: 0.15,
+    doubleChance: 0,
+  });
 
-  // Negative seam line bounding the red chin cap
+  // Two small dark recessed vent slots along the jaw ridge (as in reference)
+  drawInkStroke(
+    ctx,
+    P([
+      [0.545, 0.562],
+      [0.568, 0.578],
+    ]),
+    rng,
+    { baseWidth: 3.4 * s, color: THEME_COLORS.ink, wobbleScale: 0.08, doubleChance: 0 }
+  );
+  drawInkStroke(
+    ctx,
+    P([
+      [0.578, 0.584],
+      [0.602, 0.600],
+    ]),
+    rng,
+    { baseWidth: 3.4 * s, color: THEME_COLORS.ink, wobbleScale: 0.08, doubleChance: 0 }
+  );
+
+  // Crisp white negative seam along the dark lower jaw rim
   carveNegativeSeam(
     ctx,
-    polyHToPx(
-      [
-        [chinTip[0] - 0.05, chinTip[1] - 0.08],
-        [chinTip[0] - 0.10, chinTip[1] - 0.02],
-        [chinTip[0] - 0.06, chinTip[1] + 0.04],
-      ],
-      W,
-      sk
-    ),
+    P([
+      [0.560, 0.612],
+      [0.625, 0.668],
+      [0.685, 0.712],
+    ]),
     rng,
-    { baseWidth: 2.2 * s, wobbleScale: 0.2 }
+    { baseWidth: 1.8 * s, wobbleScale: 0.15, doubleChance: 0 }
   );
 
   // ---------------------------------------------------------------------------
-  // 3. HORIZONTAL LINE CUTOUTS ALONG JAW PLATE (matching reference mech cutouts)
+  // 3. LONG DOWNWARD-POINTING ANGULAR RED CHIN WEDGE (Green chin piece in ref)
   // ---------------------------------------------------------------------------
-  carveNegativeSeam(
+  const chinWedgeUv: PointUV[] = [
+    [0.688, 0.590], // top apex on snout
+    [0.775, 0.718], // sharp front-bottom chin tip
+    [0.742, 0.730], // bottom-most corner of chin cap
+    [0.710, 0.722], // rear-bottom corner meeting lower mandible
+    [0.702, 0.665], // inner seam step
+  ];
+  fillRoughenedPolygon(ctx, P(chinWedgeUv), rng, THEME_COLORS.red, 0.6 * s);
+
+  // Heavy black outline around the angular red chin wedge
+  drawInkStroke(ctx, [...P(chinWedgeUv), U(0.688, 0.590)], rng, {
+    baseWidth: 3.0 * s,
+    color: THEME_COLORS.ink,
+    wobbleScale: 0.12,
+    doubleChance: 0,
+  });
+
+  // Internal bevel facet line near the bottom of the chin wedge
+  drawInkStroke(
     ctx,
-    polyHToPx(
-      [
-        [jawHinge[0] + 0.06, jawHinge[1] + 0.06],
-        [jawHinge[0] + 0.16, jawHinge[1] + 0.08],
-        [chinTip[0] - 0.12, chinTip[1] - 0.04],
-      ],
-      W,
-      sk
-    ),
+    P([
+      [0.714, 0.706],
+      [0.742, 0.714],
+      [0.770, 0.716],
+    ]),
     rng,
-    { baseWidth: 2.0 * s, wobbleScale: 0.15 }
+    { baseWidth: 2.0 * s, color: THEME_COLORS.ink, wobbleScale: 0.08, doubleChance: 0 }
   );
 
   recorder.captureStage(canvas, 0.80, 0.92, 'left-right');
