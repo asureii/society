@@ -467,7 +467,7 @@ function main() {
     const stagePreview = new SoftwareCanvas2D(stageW, stageH);
     stagePreview.drawImage(bgCanvas, 0, 0, stageW, stageH);
 
-    const evaSizeOnStage = Math.round(stageH * 0.84);
+    const evaSizeOnStage = Math.round(stageH * 0.86);
     const evaX = Math.round(-0.02 * evaSizeOnStage);
     const evaY = Math.round(stageH - evaSizeOnStage + 0.02 * evaSizeOnStage);
     for (const layer of [torso, neck, head, jaw, eye, pupil, drips]) {

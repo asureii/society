@@ -658,8 +658,8 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
           0
         );
       } else {
-        // Desktop: bust spans ~84% of stage height so horn tip stays cleanly inside the top frame
-        const desktopStageWorldH = vHAtZero * 0.84;
+        // Desktop: bust spans ~86% of stage height so horn tip stays cleanly inside the top frame
+        const desktopStageWorldH = vHAtZero * 0.86;
         const desiredHWorld = desktopStageWorldH / EVA_PROPORTIONS.visibleHeads;
         const rigScale = desiredHWorld / EVA_CONFIG.headUnitWorld;
         const bottomWorldY = persp.position.y - vHAtZero * 0.5;

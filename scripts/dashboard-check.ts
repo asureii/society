@@ -651,7 +651,7 @@ function renderDashboardCompositedFrame(opts: RenderDashboardOptions): {
   blitCanvasToSurface(surface, layers.bg, 0, 0, W, H, false);
 
   // 2. Eva-01 1-to-1 Bust Silhouette
-  const evaSize = Math.round(isMob ? H * 0.42 : H * 0.84);
+  const evaSize = Math.round(isMob ? H * 0.42 : H * 0.86);
   const evaX = Math.round(-0.02 * evaSize);
   const evaY = isMob
     ? Math.round(H * 0.44 - evaSize + 0.02 * evaSize)
