@@ -2,6 +2,8 @@ export type DashboardWidgetSlotId =
   | 'rail-1'
   | 'rail-2'
   | 'rail-3'
+  | 'rail-4'
+  | 'rail-5'
   | 'dock-left'
   | 'dock-right';
 
@@ -23,10 +25,12 @@ export const DASHBOARD_LAYOUT_CONFIG: DashboardLayoutConfig = {
     'rail-1': 'discord-presence',
     'rail-2': 'spotify',
     'rail-3': 'activity',
+    'rail-4': 'favorite-tracks',
+    'rail-5': 'social-links',
     'dock-left': 'clock',
     'dock-right': 'now-building',
   },
-  rightRailSlots: ['rail-1', 'rail-2', 'rail-3'],
-  bottomDockSlots: ['dock-left', 'dock-right'],
-  mobileOrder: ['rail-1', 'rail-2', 'rail-3', 'dock-left', 'dock-right'],
+  rightRailSlots: ['rail-1', 'rail-2', 'rail-3', 'rail-4', 'rail-5'],
+  bottomDockSlots: [],
+  mobileOrder: ['rail-1', 'rail-2', 'rail-3', 'rail-4', 'rail-5'],
 };

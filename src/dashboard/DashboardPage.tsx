@@ -123,21 +123,23 @@ export const DashboardPage: React.FC = () => {
           </aside>
 
           {/* Desktop Bottom Dock (Strictly inside uiSafeRects.bottomDock: x 52%..69%, y 66%..95%) */}
-          <aside
-            aria-label="Secondary Telemetry Dock"
-            data-widget-rail="bottom"
-            style={{
-              left: `${bottomDock.x[0] * 100}%`,
-              width: `${(bottomDock.x[1] - bottomDock.x[0]) * 100}%`,
-              top: `${bottomDock.y[0] * 100}%`,
-              maxHeight: `${(bottomDock.y[1] - bottomDock.y[0]) * 100}%`,
-            }}
-            className="fixed z-20 flex flex-col justify-end gap-2 pointer-events-none overflow-hidden"
-          >
-            {DASHBOARD_LAYOUT_CONFIG.bottomDockSlots.map((slotId) => (
-              <SlotRenderer key={slotId} slotId={slotId} />
-            ))}
-          </aside>
+          {DASHBOARD_LAYOUT_CONFIG.bottomDockSlots.length > 0 && (
+            <aside
+              aria-label="Secondary Telemetry Dock"
+              data-widget-rail="bottom"
+              style={{
+                left: `${bottomDock.x[0] * 100}%`,
+                width: `${(bottomDock.x[1] - bottomDock.x[0]) * 100}%`,
+                top: `${bottomDock.y[0] * 100}%`,
+                maxHeight: `${(bottomDock.y[1] - bottomDock.y[0]) * 100}%`,
+              }}
+              className="fixed z-20 flex flex-col justify-end gap-2 pointer-events-none overflow-hidden"
+            >
+              {DASHBOARD_LAYOUT_CONFIG.bottomDockSlots.map((slotId) => (
+                <SlotRenderer key={slotId} slotId={slotId} />
+              ))}
+            </aside>
+          )}
         </>
       ) : (
         /* Mobile Single-Column Ordered Widget Stack below 58dvh stage */

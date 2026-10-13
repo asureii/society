@@ -68,6 +68,9 @@ export interface ProfileConfig {
     discord: string;
     email: string;
     linkedin?: string;
+    spotify?: string;
+    tiktok?: string;
+    instagram?: string;
   };
   audio: {
     ambientUrl?: string;
@@ -260,6 +263,9 @@ export const PROFILE: ProfileConfig = {
     discord: 'https://discord.com/users/832522840682790913',
     email: 'mailto:TODO_EMAIL@example.com',
     linkedin: 'https://linkedin.com/in/TODO_LINKEDIN',
+    spotify: 'https://open.spotify.com/user/sa7ity',
+    tiktok: 'https://www.tiktok.com/@sa7ity',
+    instagram: 'https://www.instagram.com/sa7ity',
   },
   audio: {
     ambientUrl: undefined,

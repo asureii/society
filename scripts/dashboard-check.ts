@@ -788,12 +788,22 @@ function renderDashboardCompositedFrame(opts: RenderDashboardOptions): {
     const rx = Math.round(rr.x[0] * W);
     const rw = Math.round((rr.x[1] - rr.x[0]) * W);
     const ry0 = Math.round(rr.y[0] * H);
+    const railH = Math.round((rr.y[1] - rr.y[0]) * H);
 
+    const scale = Math.min(1.0, railH / 740);
+    const gap = Math.max(6, Math.round(10 * scale));
+    const h1 = Math.round(160 * scale);
+    const h2 = Math.round(120 * scale);
+    const h3 = Math.round(110 * scale);
+    const h4 = Math.round(125 * scale);
+    const h5 = Math.round(110 * scale);
+
+    let curY = ry0;
     drawMangaBox(
       rx,
-      ry0,
+      curY,
       rw,
-      195,
+      h1,
       'SYNC.01',
       'PILOT PRESENCE',
       [
@@ -803,11 +813,12 @@ function renderDashboardCompositedFrame(opts: RenderDashboardOptions): {
       ],
       true
     );
+    curY += h1 + gap;
     drawMangaBox(
       rx,
-      ry0 + 210,
+      curY,
       rw,
-      135,
+      h2,
       'SYNC.02',
       'AUDIO FEED',
       spotifyPlaying
@@ -815,23 +826,39 @@ function renderDashboardCompositedFrame(opts: RenderDashboardOptions): {
         : ['NO ACTIVE STREAM', 'STANDBY'],
       false
     );
+    curY += h2 + gap;
     drawMangaBox(
       rx,
-      ry0 + 360,
+      curY,
       rw,
-      125,
+      h3,
       'SYNC.03',
       'ACTIVE PROCESS',
       ['NEOVIM // WORKSPACE', 'T+01:14:08'],
       false
     );
-
-    const bd = STAGE_DASHBOARD_CONFIG.uiSafeRects.bottomDock;
-    const bx = Math.round(bd.x[0] * W);
-    const bw = Math.round((bd.x[1] - bd.x[0]) * W);
-    const by0 = Math.round(bd.y[0] * H);
-    drawMangaBox(bx, by0, bw, 95, 'SLOT', 'DOCK-LEFT', ['UNASSIGNED // AWAITING SIGNAL']);
-    drawMangaBox(bx, by0 + 108, bw, 95, 'SLOT', 'DOCK-RIGHT', ['UNASSIGNED // AWAITING SIGNAL']);
+    curY += h3 + gap;
+    drawMangaBox(
+      rx,
+      curY,
+      rw,
+      h4,
+      'SYNC.04',
+      'FAVORITE TRACKS',
+      ['01 AOI KOI DAIDDAIIRO NO HI', '02 JOIN ME (RAZORBLADE REMIX)'],
+      false
+    );
+    curY += h4 + gap;
+    drawMangaBox(
+      rx,
+      curY,
+      rw,
+      h5,
+      'SYNC.05',
+      'UPLINK // SOCIALS',
+      ['SP-01 SPOTIFY  DC-02 DISCORD', 'TT-03 TIKTOK   IG-04 INSTAGRAM'],
+      false
+    );
   } else {
     const stackY = Math.round(H * 0.58);
     drawMangaBox(

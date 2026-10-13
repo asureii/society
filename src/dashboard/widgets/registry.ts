@@ -7,6 +7,8 @@ import { ActivityWidget } from './ActivityWidget';
 import { ClockWidget } from './ClockWidget';
 import { GithubActivityWidget } from './GithubActivityWidget';
 import { NowBuildingWidget } from './NowBuildingWidget';
+import { FavoriteTracksWidget } from './FavoriteTracksWidget';
+import { SocialLinksWidget } from './SocialLinksWidget';
 
 export type WidgetRequirement = 'discord' | 'spotify' | 'github' | 'timezone' | 'profile';
 
@@ -57,6 +59,24 @@ export const WIDGETS: DashboardWidgetDefinition[] = [
     enabled: true,
     requires: ['discord'],
     component: ActivityWidget,
+  }),
+  defineWidget({
+    id: 'favorite-tracks',
+    title: 'FAVORITE TRACKS',
+    kicker: 'SYNC.04',
+    slot: 'rail-4',
+    size: 'md',
+    enabled: true,
+    component: FavoriteTracksWidget,
+  }),
+  defineWidget({
+    id: 'social-links',
+    title: 'UPLINK // SOCIALS',
+    kicker: 'SYNC.05',
+    slot: 'rail-5',
+    size: 'md',
+    enabled: true,
+    component: SocialLinksWidget,
   }),
   // Stub widgets (implemented, disabled by default, ready to enable)
   defineWidget({
