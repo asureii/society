@@ -633,6 +633,12 @@ function renderDashboardCompositedFrame(opts: RenderDashboardOptions): {
   blackShare: number;
   redShare: number;
   otherShare: number;
+  stageBlackShare: number;
+  stageWhiteShare: number;
+  stageRedShare: number;
+  middleBlackShare: number;
+  topBlackShare: number;
+  rightBlackShare: number;
 } {
   const { width: W, height: H, status, spotifyPlaying = false, unreachable = false } = opts;
   const surface = new RasterSurface(W, H);
@@ -650,12 +656,58 @@ function renderDashboardCompositedFrame(opts: RenderDashboardOptions): {
   // 1. Fallen City hand-inked ruined city background
   blitCanvasToSurface(surface, layers.bg, 0, 0, W, H, false);
 
-  // 2. Eva-01 1-to-1 Bust Silhouette
+  // 2. Eva-01 1-to-1 Bust Silhouette with 7px dilated white keyline
   const evaSize = Math.round(isMob ? H * 0.42 : H * 0.86);
   const evaX = Math.round(-0.02 * evaSize);
   const evaY = isMob
     ? Math.round(H * 0.44 - evaSize + 0.02 * evaSize)
     : Math.round(H - evaSize + 0.02 * evaSize);
+
+  // Dilate 7px white keyline around Eva silhouette
+  const keylineR = 7;
+  const evaMask = new Uint8Array(W * H);
+  for (let y = 0; y < evaSize; y++) {
+    const ty = evaY + y;
+    if (ty < 0 || ty >= H) continue;
+    const sy = Math.min(layers.evaBodyAndHead.height - 1, Math.floor((y / evaSize) * layers.evaBodyAndHead.height));
+    for (let x = 0; x < evaSize; x++) {
+      const tx = evaX + x;
+      if (tx < 0 || tx >= W) continue;
+      const sx = Math.min(layers.evaBodyAndHead.width - 1, Math.floor((x / evaSize) * layers.evaBodyAndHead.width));
+      const sIdx = (sy * layers.evaBodyAndHead.width + sx) * 4;
+      if (layers.evaBodyAndHead.data[sIdx + 3] > 20) {
+        evaMask[ty * W + tx] = 1;
+      }
+    }
+  }
+
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const idx = y * W + x;
+      if (evaMask[idx] === 1) continue;
+      let hasNeighbor = false;
+      for (let dy = -keylineR; dy <= keylineR; dy++) {
+        const ny = y + dy;
+        if (ny < 0 || ny >= H) continue;
+        for (let dx = -keylineR; dx <= keylineR; dx++) {
+          if (dx * dx + dy * dy > keylineR * keylineR) continue;
+          const nx = x + dx;
+          if (nx < 0 || nx >= W) continue;
+          if (evaMask[ny * W + nx] === 1) {
+            hasNeighbor = true;
+            break;
+          }
+        }
+        if (hasNeighbor) break;
+      }
+      if (hasNeighbor) {
+        const p = idx * 4;
+        if (surface.rgba[p] <= 25 && surface.rgba[p + 1] <= 25 && surface.rgba[p + 2] <= 25) {
+          surface.setPixel(x, y, [250, 250, 248]);
+        }
+      }
+    }
+  }
 
   blitCanvasToSurface(surface, layers.evaBodyAndHead, evaX, evaY, evaSize, evaSize, true);
   if (profile.eyeBlackout < 0.5) {
@@ -843,6 +895,45 @@ function renderDashboardCompositedFrame(opts: RenderDashboardOptions): {
     }
   }
 
+  // Also measure stage alone before HUD (as required by Fallen City specs)
+  let stageWhiteCount = 0;
+  let stageBlackCount = 0;
+  let stageRedCount = 0;
+  let middleBlack = 0;
+  let middleTotal = 0;
+  let topBlack = 0;
+  let topTotal = 0;
+  let rightBlack = 0;
+  let rightTotal = 0;
+
+  for (let y = 0; y < H; y++) {
+    const isTop = y < H * 0.333;
+    for (let x = 0; x < W; x++) {
+      const isMiddle = x >= W * 0.45 && x <= W * 0.68;
+      const isRight = x >= W * 0.67;
+
+      if (isMiddle) middleTotal++;
+      if (isTop) topTotal++;
+      if (isRight) rightTotal++;
+
+      const p = (y * W + x) * 4;
+      const r = surface.rgba[p];
+      const g = surface.rgba[p + 1];
+      const b = surface.rgba[p + 2];
+
+      if (r >= 240 && g >= 240 && b >= 235) {
+        stageWhiteCount++;
+      } else if (r <= 25 && g <= 25 && b <= 25) {
+        stageBlackCount++;
+        if (isMiddle) middleBlack++;
+        if (isTop) topBlack++;
+        if (isRight) rightBlack++;
+      } else if (r >= 160 && g <= 45 && b <= 45) {
+        stageRedCount++;
+      }
+    }
+  }
+
   return {
     surface,
     evaLeftCoverage: focalInkPixels / focalTotalPixels,
@@ -850,6 +941,12 @@ function renderDashboardCompositedFrame(opts: RenderDashboardOptions): {
     blackShare: blackCount / totalPixels,
     redShare: redCount / totalPixels,
     otherShare: otherCount / totalPixels,
+    stageBlackShare: stageBlackCount / totalPixels,
+    stageWhiteShare: stageWhiteCount / totalPixels,
+    stageRedShare: stageRedCount / totalPixels,
+    middleBlackShare: middleTotal > 0 ? middleBlack / middleTotal : 0,
+    topBlackShare: topTotal > 0 ? topBlack / topTotal : 0,
+    rightBlackShare: rightTotal > 0 ? rightBlack / rightTotal : 0,
   };
 }
 

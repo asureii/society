@@ -143,7 +143,21 @@ const EVA_REVEAL_FRAG = /* glsl */ `
     }
 
     float alpha = tex.a * edgeMask;
-    if (alpha < 0.05) discard;
+    if (alpha < 0.05) {
+      // Hand-wobbled 6-8px white keyline: sample 12 neighbor directions at radius ~7px
+      float maxNeighborAlpha = 0.0;
+      for (int i = 0; i < 12; i++) {
+        float angle = float(i) * 0.52359877; // 2 * PI / 12
+        vec2 offset = vec2(cos(angle), sin(angle)) * 0.007;
+        float nAlpha = texture2D(uTex, vUv + offset).a;
+        if (nAlpha > maxNeighborAlpha) maxNeighborAlpha = nAlpha;
+      }
+      if (maxNeighborAlpha * edgeMask > 0.18) {
+        gl_FragColor = vec4(uColorPaper, 1.0);
+        return;
+      }
+      discard;
+    }
     bool isRed = (tex.r - max(tex.g, tex.b)) > 0.18;
     float luma = dot(tex.rgb, vec3(0.299, 0.587, 0.114));
     vec3 col = isRed ? uColorRed : (luma > 0.22 ? uColorPaper : uColorInk);

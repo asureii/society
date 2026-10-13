@@ -460,7 +460,7 @@ function main() {
       encodePng(96, 96, squint96.data)
     );
 
-    // Render 1440x900 Fallen City stage composite with Eva-01 bust
+    // Render 1440x900 Fallen City stage composite with Eva-01 bust and 7px white keyline
     const stageW = 1440;
     const stageH = 900;
     const bgCanvas = makeLayer((ctx, c, r) => drawEvaStageBackground(ctx, c, r, 701), S);
@@ -470,6 +470,56 @@ function main() {
     const evaSizeOnStage = Math.round(stageH * 0.86);
     const evaX = Math.round(-0.02 * evaSizeOnStage);
     const evaY = Math.round(stageH - evaSizeOnStage + 0.02 * evaSizeOnStage);
+
+    // 7px dilated white keyline mask
+    const keylineR = 7;
+    const evaMask = new Uint8Array(stageW * stageH);
+    for (let y = 0; y < evaSizeOnStage; y++) {
+      const ty = evaY + y;
+      if (ty < 0 || ty >= stageH) continue;
+      const sy = Math.min(composite.height - 1, Math.floor((y / evaSizeOnStage) * composite.height));
+      for (let x = 0; x < evaSizeOnStage; x++) {
+        const tx = evaX + x;
+        if (tx < 0 || tx >= stageW) continue;
+        const sx = Math.min(composite.width - 1, Math.floor((x / evaSizeOnStage) * composite.width));
+        const sIdx = (sy * composite.width + sx) * 4;
+        if (composite.data[sIdx + 3] > 20) {
+          evaMask[ty * stageW + tx] = 1;
+        }
+      }
+    }
+
+    for (let y = 0; y < stageH; y++) {
+      for (let x = 0; x < stageW; x++) {
+        const idx = y * stageW + x;
+        if (evaMask[idx] === 1) continue;
+        let hasNeighbor = false;
+        for (let dy = -keylineR; dy <= keylineR; dy++) {
+          const ny = y + dy;
+          if (ny < 0 || ny >= stageH) continue;
+          for (let dx = -keylineR; dx <= keylineR; dx++) {
+            if (dx * dx + dy * dy > keylineR * keylineR) continue;
+            const nx = x + dx;
+            if (nx < 0 || nx >= stageW) continue;
+            if (evaMask[ny * stageW + nx] === 1) {
+              hasNeighbor = true;
+              break;
+            }
+          }
+          if (hasNeighbor) break;
+        }
+        if (hasNeighbor) {
+          const p = idx * 4;
+          if (stagePreview.data[p] <= 25 && stagePreview.data[p + 1] <= 25 && stagePreview.data[p + 2] <= 25) {
+            stagePreview.data[p] = 250;
+            stagePreview.data[p + 1] = 250;
+            stagePreview.data[p + 2] = 248;
+            stagePreview.data[p + 3] = 255;
+          }
+        }
+      }
+    }
+
     for (const layer of [torso, neck, head, jaw, eye, pupil, drips]) {
       stagePreview.drawImage(layer, evaX, evaY, evaSizeOnStage, evaSizeOnStage);
     }
