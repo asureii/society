@@ -1,3 +1,16 @@
+/**
+ * FALLEN CITY — HAND-INKED RUINED CITY BACKGROUND (src/dashboard/eva/background.ts)
+ *
+ * A hand-inked ruined city drawn in the same architectural ink-on-paper style as the main site:
+ * - Strict 3-color palette: warm paper (#FAFAF8), pure white (#FFFFFF), black ink (#0A0A0A),
+ *   and very sparse red (#D4141C). Zero grey fills; shading comes strictly from hatching & stipple.
+ * - Low-angle one-point perspective looking down a collapsed avenue toward vanishing point
+ *   VP = (0.51W, 0.53H), directly behind the Eva-01 silhouette's shoulders and head.
+ * - Composition leaves a clean white sky corridor around the red orb (u ~ 0.60, v ~ 0.39) and
+ *   the sight line (u = 0.34..0.60, v ~ 0.42..0.48) so the background never clutters the foreground.
+ * - Aspect-compensated geometry (designed for 16:10 / 16:9 widescreen projection from 1024x1024 UV).
+ */
+
 import { THEME_COLORS } from '../../config/theme.ts';
 import { drawCatenaryCable } from '../../scene/art/cables.ts';
 import {
@@ -9,31 +22,13 @@ import {
   type Point2D,
 } from '../../scene/art/inkBrush.ts';
 import { createRng, type PRNG } from '../../scene/art/rng.ts';
-import {
-  drawInkSpatterCluster,
-  type AnyCanvas,
-  type EvaDrawOrderRecorder,
-} from './evaSurface.ts';
+import type { AnyCanvas, EvaDrawOrderRecorder } from './evaSurface.ts';
 
 /**
- * Clips a line segment (p0 -> p1) against a convex/simple polygon and draws
- * variable-width hand-inked hatch strokes for every interior segment.
- * Works identically in browser Canvas2D, OffscreenCanvas, and Node SoftwareCanvas2D
- * without relying on `ctx.clip()`.
+ * Software-clipping directional hatch helper so polygon hatching works identically
+ * in browser Canvas2D/OffscreenCanvas and headless Node SoftwareCanvas2D.
  */
-function pointInPolygon(x: number, y: number, poly: Point2D[]): boolean {
-  let inside = false;
-  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    const [xi, yi] = poly[i];
-    const [xj, yj] = poly[j];
-    const intersect =
-      yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi + 1e-9) + xi;
-    if (intersect) inside = !inside;
-  }
-  return inside;
-}
-
-function hatchPolygonVerticalOrAngled(
+function hatchPolygonClipped(
   ctx: Canvas2DContext,
   poly: Point2D[],
   rng: PRNG,
@@ -41,9 +36,8 @@ function hatchPolygonVerticalOrAngled(
     angleRad: number;
     spacing: number;
     baseWidth: number;
-    breakChance?: number;
-    doubleChance?: number;
-    stippleChance?: number;
+    toneAt: (u: number, v: number) => number;
+    crossHatch?: boolean;
   }
 ): void {
   if (poly.length < 3) return;
@@ -57,88 +51,320 @@ function hatchPolygonVerticalOrAngled(
     if (x > maxX) maxX = x;
     if (y > maxY) maxY = y;
   }
-
+  const w = Math.max(1, maxX - minX);
+  const h = Math.max(1, maxY - minY);
   const cx = (minX + maxX) * 0.5;
   const cy = (minY + maxY) * 0.5;
-  const diag = Math.hypot(maxX - minX, maxY - minY);
-  const cosA = Math.cos(opts.angleRad);
-  const sinA = Math.sin(opts.angleRad);
-  const perpX = -sinA;
-  const perpY = cosA;
+  const diag = Math.hypot(w, h);
 
-  let cursor = -diag * 0.55;
-  while (cursor <= diag * 0.55) {
-    cursor += opts.spacing * rng.range(0.72, 1.28);
-    const ox = cx + perpX * cursor;
-    const oy = cy + perpY * cursor;
-
-    const steps = 16;
-    let run: Point2D[] = [];
-    for (let s = 0; s <= steps; s++) {
-      const along = (s / steps - 0.5) * diag * 1.1;
-      const px = ox + cosA * along;
-      const py = oy + sinA * along;
-      if (pointInPolygon(px, py, poly)) {
-        if (opts.breakChance && rng.chance(opts.breakChance)) {
-          if (run.length >= 2) {
-            drawInkStroke(ctx, run, rng, {
-              baseWidth: opts.baseWidth * rng.range(0.8, 1.2),
-              color: THEME_COLORS.ink,
-              wobbleScale: 0.55,
-              taperScale: 1.1,
-              doubleChance: opts.doubleChance ?? 0,
-              breakChance: 0,
-            });
-          }
-          run = [];
-        } else {
-          run.push([px, py]);
-        }
-      } else {
-        if (run.length >= 2) {
-          drawInkStroke(ctx, run, rng, {
-            baseWidth: opts.baseWidth * rng.range(0.8, 1.2),
-            color: THEME_COLORS.ink,
-            wobbleScale: 0.55,
-            taperScale: 1.1,
-            doubleChance: opts.doubleChance ?? 0,
-            breakChance: 0,
-          });
-        } else if (run.length === 1 && opts.stippleChance && rng.chance(opts.stippleChance)) {
-          drawInkDot(ctx, run[0][0], run[0][1], opts.baseWidth * 0.65, rng, THEME_COLORS.ink);
-        }
-        run = [];
+  const inside = (px: number, py: number): boolean => {
+    let c = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const [xi, yi] = poly[i];
+      const [xj, yj] = poly[j];
+      if (yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi + 1e-6) + xi) {
+        c = !c;
       }
     }
-    if (run.length >= 2) {
-      drawInkStroke(ctx, run, rng, {
-        baseWidth: opts.baseWidth * rng.range(0.8, 1.2),
-        color: THEME_COLORS.ink,
-        wobbleScale: 0.55,
-        taperScale: 1.1,
-        doubleChance: opts.doubleChance ?? 0,
-        breakChance: 0,
-      });
+    return c;
+  };
+
+  const runPass = (angle: number, spacingMul: number, minTone: number) => {
+    const cosA = Math.cos(angle);
+    const sinA = Math.sin(angle);
+    const nx = -sinA;
+    const ny = cosA;
+
+    let d = -diag * 0.55;
+    while (d <= diag * 0.55) {
+      d += opts.spacing * spacingMul * rng.range(0.82, 1.22);
+      const ox = cx + nx * d;
+      const oy = cy + ny * d;
+
+      const steps = 22;
+      let seg: Point2D[] = [];
+      for (let s = 0; s <= steps; s++) {
+        const along = (s / steps - 0.5) * diag * 1.08;
+        const px = ox + cosA * along;
+        const py = oy + sinA * along;
+        if (inside(px, py)) {
+          const u = (px - minX) / w;
+          const v = (py - minY) / h;
+          const tone = opts.toneAt(u, v);
+          if (tone >= minTone) {
+            seg.push([px, py]);
+          } else {
+            if (seg.length >= 2) {
+              drawInkStroke(ctx, seg, rng, {
+                baseWidth: opts.baseWidth * rng.range(0.85, 1.1),
+                wobbleScale: 0.35,
+                taperScale: 1.15,
+                doubleChance: 0,
+                imperfectJoin: false,
+              });
+            }
+            seg = [];
+            if (tone > 0.16 && rng.chance(0.18)) {
+              drawInkDot(ctx, px, py, opts.baseWidth * 0.55, rng, THEME_COLORS.ink);
+            }
+          }
+        } else {
+          if (seg.length >= 2) {
+            drawInkStroke(ctx, seg, rng, {
+              baseWidth: opts.baseWidth * rng.range(0.85, 1.1),
+              wobbleScale: 0.35,
+              taperScale: 1.15,
+              doubleChance: 0,
+              imperfectJoin: false,
+            });
+          }
+          seg = [];
+        }
+      }
+      if (seg.length >= 2) {
+        drawInkStroke(ctx, seg, rng, {
+          baseWidth: opts.baseWidth * rng.range(0.85, 1.1),
+          wobbleScale: 0.35,
+          taperScale: 1.15,
+          doubleChance: 0,
+          imperfectJoin: false,
+        });
+      }
     }
+  };
+
+  runPass(opts.angleRad, 1.0, 0.32);
+  if (opts.crossHatch) {
+    runPass(opts.angleRad + 1.1, 1.5, 0.72);
   }
 }
 
 /**
- * Draws the "Fallen City" dashboard background scene (1024x1024):
- * - Low-angle view looking down a collapsed one-point perspective avenue.
- * - Horizon sits about halfway up the screen (y = 0.52H), directly behind Eva-01's shoulders and head.
- * - Sky: almost entirely blank white paper, with a single ragged black ink mass bleeding in from
- *   the top-right corner (torn edges, white speckle holes, vertical ink drips), thin curved wind
- *   lines across the empty sky, and 3 slow plumes of ink smoke rising from behind the skyline.
- * - Far distance: jagged row of snapped skyscrapers drawn in thin broken lines with sparse vertical
- *   hatching and no solid black, standing at different heights/angles, one toppled across its
- *   neighbor like a bridge, with tiny empty rectangular windows and a few blacked out.
- * - Closer in: 3 enormous split towers with peeling floors, rib-like exposed girders, heavier
- *   vertical hatching on shadowed faces, a snapped mid-air highway overpass hanging over the
- *   street, and a bent construction crane leaning across the scene.
- * - Street: runs toward the horizon in one-point perspective with cracked asphalt, broken dashed
- *   lane markings, sagging catenary power lines, standing poles, and a fallen pole across the road.
+ * Draws a 3D ruined tower with a clean white lit front face (broken top + tiny windows)
+ * and a vertically hatched shadowed side face so buildings read as crisp manga architecture
+ * with plenty of white paper negative space.
  */
+function drawRuinedBuilding3D(
+  ctx: Canvas2DContext,
+  rng: PRNG,
+  b: {
+    x: number;
+    botY: number;
+    topY: number;
+    litW: number;
+    shadowW: number;
+    shadowOnLeft?: boolean;
+    leanPx?: number;
+    splitGapW?: number;
+    splitDepthFrac?: number;
+    peelingFloors?: boolean;
+    isFar?: boolean;
+  }
+): void {
+  const lean = b.leanPx ?? 0;
+  const h = b.botY - b.topY;
+  const shadowLeft = b.shadowOnLeft ?? false;
+  const outlineW = b.isFar ? 1.5 : 2.3;
+
+  const litX0 = shadowLeft ? b.x + b.shadowW : b.x;
+  const litX1 = litX0 + b.litW;
+  const shX0 = shadowLeft ? b.x : litX1;
+  const shX1 = shadowLeft ? litX0 : litX1 + b.shadowW;
+
+  // Jagged snapped roof profile on lit face
+  const roofNotchY = b.topY + h * rng.range(0.03, 0.08);
+  const litPoly: Point2D[] = [
+    [litX0, b.botY],
+    [litX0 + lean, b.topY + h * 0.04],
+    [litX0 + b.litW * 0.36 + lean, b.topY],
+    [litX0 + b.litW * 0.64 + lean, roofNotchY],
+    [litX1 + lean, b.topY + h * 0.02],
+    [litX1, b.botY],
+  ];
+
+  const shadowPoly: Point2D[] = shadowLeft
+    ? [
+        [shX0, b.botY],
+        [shX0 + lean, b.topY + h * 0.09],
+        [shX1 + lean, b.topY + h * 0.04],
+        [shX1, b.botY],
+      ]
+    : [
+        [shX0, b.botY],
+        [shX0 + lean, b.topY + h * 0.02],
+        [shX1 + lean, b.topY + h * 0.08],
+        [shX1, b.botY],
+      ];
+
+  // Fill both faces with clean white paper first to occlude anything behind
+  fillRoughenedPolygon(ctx, litPoly, rng, THEME_COLORS.paperPure, 1.0);
+  fillRoughenedPolygon(ctx, shadowPoly, rng, THEME_COLORS.paperPure, 1.0);
+
+  // Vertical hatching ONLY on the shadowed side face (plus very sparse weathering at base of lit face)
+  hatchPolygonClipped(ctx, shadowPoly, rng, {
+    angleRad: Math.PI * 0.5 + (lean / Math.max(60, h)) * 0.6,
+    spacing: b.isFar ? 7.5 : 5.5,
+    baseWidth: b.isFar ? 1.15 : 1.55,
+    toneAt: (u, v) => (b.isFar ? 0.48 : 0.62 + u * 0.25 + v * 0.15),
+    crossHatch: !b.isFar,
+  });
+
+  if (!b.isFar) {
+    hatchPolygonClipped(ctx, litPoly, rng, {
+      angleRad: Math.PI * 0.5,
+      spacing: 11.5,
+      baseWidth: 1.15,
+      toneAt: (u, v) => Math.max(0, (v - 0.78) * 1.6 + (u > 0.82 ? 0.35 : 0)),
+    });
+  }
+
+  // Optional vertical split down the middle of midground towers with exposed rib girders
+  if (b.splitGapW && b.splitDepthFrac) {
+    const splitBottomY = b.topY + h * b.splitDepthFrac;
+    const midX = (litX0 + litX1) * 0.5;
+    const halfGap = b.splitGapW * 0.5;
+    const chasmPoly: Point2D[] = [
+      [midX - halfGap + lean, b.topY - 4],
+      [midX + halfGap + lean, b.topY - 4],
+      [midX + halfGap * 0.35 + lean * 0.4, splitBottomY],
+      [midX - halfGap * 0.35 + lean * 0.4, splitBottomY],
+    ];
+    fillRoughenedPolygon(ctx, chasmPoly, rng, THEME_COLORS.paper, 0.8);
+    drawInkStroke(
+      ctx,
+      [
+        [midX - halfGap + lean, b.topY + 2],
+        [midX - halfGap * 0.55 + lean * 0.6, (b.topY + splitBottomY) * 0.5],
+        [midX - halfGap * 0.25 + lean * 0.4, splitBottomY],
+      ],
+      rng,
+      { baseWidth: outlineW, wobbleScale: 0.65 }
+    );
+    drawInkStroke(
+      ctx,
+      [
+        [midX + halfGap + lean, b.topY + 4],
+        [midX + halfGap * 0.55 + lean * 0.6, (b.topY + splitBottomY) * 0.5],
+        [midX + halfGap * 0.25 + lean * 0.4, splitBottomY],
+      ],
+      rng,
+      { baseWidth: outlineW, wobbleScale: 0.65 }
+    );
+
+    // Rib-like exposed horizontal girders sticking into the split chasm
+    const ribCount = 5;
+    for (let r = 0; r < ribCount; r++) {
+      const ry = b.topY + 12 + (r / ribCount) * (splitBottomY - b.topY - 18);
+      const tShift = ((b.botY - ry) / h) * lean;
+      const side = r % 2 === 0 ? -1 : 1;
+      const rx0 = midX + side * halfGap * 0.75 + tShift;
+      const rx1 = rx0 - side * (b.splitGapW * rng.range(0.55, 0.88));
+      drawInkStroke(
+        ctx,
+        [
+          [rx0, ry],
+          [rx1, ry + rng.range(-2, 3)],
+        ],
+        rng,
+        { baseWidth: 1.35, taperScale: 1.2, wobbleScale: 0.35 }
+      );
+    }
+  }
+
+  // Peeling floor slabs & protruding rib girders on outer broken edge
+  if (b.peelingFloors) {
+    for (let p = 0; p < 3; p++) {
+      const py = b.topY + h * (0.14 + p * 0.16);
+      const tShift = ((b.botY - py) / h) * lean;
+      const edgeX = (shadowLeft ? shX0 : shX1) + tShift;
+      const dir = shadowLeft ? -1 : 1;
+      const span = rng.range(12, 22);
+      const drop = rng.range(6, 13);
+      drawInkStroke(
+        ctx,
+        [
+          [edgeX - dir * 3, py],
+          [edgeX + dir * span * 0.55, py + drop * 0.4],
+          [edgeX + dir * span, py + drop],
+        ],
+        rng,
+        { baseWidth: 1.6, taperScale: 1.2, wobbleScale: 0.45 }
+      );
+    }
+  }
+
+  // Crisp outlines
+  outlinePolygonWithInk(ctx, shadowPoly, rng, {
+    baseWidth: outlineW,
+    doubleChance: b.isFar ? 0.12 : 0.22,
+    breakChance: b.isFar ? 0.16 : 0.06,
+    wobbleScale: 0.45,
+  });
+  outlinePolygonWithInk(ctx, litPoly, rng, {
+    baseWidth: outlineW,
+    doubleChance: b.isFar ? 0.15 : 0.25,
+    breakChance: b.isFar ? 0.16 : 0.06,
+    wobbleScale: 0.45,
+    dryBrush: !b.isFar,
+  });
+
+  // Roof antenna / snapped spire rebar
+  for (let a = 0; a < 2; a++) {
+    const ax = litX0 + b.litW * (0.28 + a * 0.42) + lean;
+    const ay = b.topY + 3;
+    const ah = rng.range(8, 18);
+    drawInkStroke(
+      ctx,
+      [
+        [ax, ay],
+        [ax + rng.range(-3, 4), ay - ah],
+      ],
+      rng,
+      { baseWidth: 1.15, taperScale: 1.3, wobbleScale: 0.4 }
+    );
+  }
+
+  // Tiny rectangular windows on the lit face (aspect-compensated so they look square/vertical on 16:9)
+  const cols = Math.max(2, Math.floor(b.litW / (b.isFar ? 11 : 14)));
+  const rows = Math.max(3, Math.floor(h / (b.isFar ? 18 : 22)));
+  const winW = b.isFar ? 3.2 : 4.2;
+  const winH = b.isFar ? 5.2 : 6.8;
+
+  for (let r = 1; r < rows; r++) {
+    const wy = b.topY + (r / rows) * (h - 14) + 6;
+    const rowLean = ((b.botY - wy) / h) * lean;
+    for (let c = 0; c < cols; c++) {
+      if (rng.chance(0.28)) continue;
+      const wx = litX0 + 6 + (c / Math.max(1, cols - 1)) * (b.litW - 14) + rowLean;
+      // Skip if inside split chasm
+      if (
+        b.splitGapW &&
+        b.splitDepthFrac &&
+        wy < b.topY + h * b.splitDepthFrac &&
+        Math.abs(wx - ((litX0 + litX1) * 0.5 + rowLean)) < b.splitGapW * 0.65
+      ) {
+        continue;
+      }
+      const winPoly: Point2D[] = [
+        [wx, wy],
+        [wx + winW, wy],
+        [wx + winW, wy + winH],
+        [wx, wy + winH],
+      ];
+      if (rng.chance(0.18)) {
+        fillRoughenedPolygon(ctx, winPoly, rng, THEME_COLORS.ink, 0.35);
+      } else {
+        outlinePolygonWithInk(ctx, winPoly, rng, {
+          baseWidth: 0.95,
+          doubleChance: 0,
+          wobbleScale: 0.25,
+          imperfectJoin: false,
+        });
+      }
+    }
+  }
+}
+
 export function drawEvaStageBackground(
   ctx: Canvas2DContext,
   canvas: AnyCanvas,
@@ -147,74 +373,77 @@ export function drawEvaStageBackground(
 ): void {
   const W = canvas.width;
   const H = canvas.height;
-  const s = W / 1024;
   const rng = createRng(seed);
-  const structuralRng = createRng(seed + 103);
+  const structuralRng = createRng(seed + 101);
 
-  // Base white paper
+  // 1. Base warm white paper (#FAFAF8)
   ctx.fillStyle = THEME_COLORS.paper;
   ctx.fillRect(0, 0, W, H);
 
-  const horizonY = H * 0.52;
-  const vpX = W * 0.56;
+  const horizonY = H * 0.53;
+  const vpX = W * 0.51;
   const vpY = horizonY;
 
   // ===========================================================================
-  // 1. SKY: TOP-RIGHT RAGGED BLACK INK MASS, SPECKLE HOLES, DRIPS, WIND & SMOKE
+  // STAGE 1 (0.25): SKY — TOP-RIGHT RAGGED BLACK INK MASS, WIND LINES & SMOKE
   // ===========================================================================
-  // Single ragged black ink mass bleeding in from top-right corner (x = 0.62W..W, y = 0..0.28H)
-  const massStartX = W * 0.62;
-  const massEndY = H * 0.28;
-  const skyMassPoly: Point2D[] = [
+  // Keep top-right ink mass compact (y <= 0.20H) so it frames the upper sky
+  // without colliding with the right-rail HUD cards or the red orb.
+  const massStartX = W * 0.56;
+  const massPoly: Point2D[] = [
     [massStartX, 0],
     [W, 0],
-    [W, massEndY],
+    [W, H * 0.21],
   ];
-  const massSteps = 48;
+  const massSteps = 52;
   for (let i = massSteps; i >= 0; i--) {
     const u = i / massSteps;
     const x = massStartX + u * (W - massStartX);
     const env = Math.pow(u, 0.85);
-    const baseY = massEndY * env + Math.sin(u * Math.PI) * H * 0.035 * env;
-    const warp = (structuralRng.fbm2D(u * 5.0, 2.1, 4) - 0.5) * H * 0.085 * Math.min(1, u * 2.8);
-    const jag = (rng.noise1D(u * 26.0) - 0.5) * H * 0.022 * Math.min(1, u * 3.5);
-    skyMassPoly.push([x, Math.max(0, baseY + warp + jag)]);
+    const baseY = H * (0.19 * env + Math.sin(u * Math.PI) * 0.03 * env);
+    const warp = (structuralRng.fbm2D(u * 4.5, 1.8, 4) - 0.5) * Math.min(1, u * 3.0);
+    const fine = (rng.noise1D(u * 26.0) - 0.5) * H * 0.016 * Math.min(1, u * 4.0);
+    const y = Math.max(0, baseY + warp * H * 0.06 + fine);
+    massPoly.push([x, y]);
   }
-  fillRoughenedPolygon(ctx, skyMassPoly, rng, THEME_COLORS.ink, 2.2 * s);
 
-  // Torn dry-brush boundary strokes, spatter & vertical ink drips from the top-right mass
-  for (let i = 3; i < skyMassPoly.length - 1; i++) {
-    const pt = skyMassPoly[i];
-    const nextPt = skyMassPoly[i + 1];
+  ctx.fillStyle = THEME_COLORS.ink;
+  ctx.beginPath();
+  ctx.moveTo(massPoly[0][0], massPoly[0][1]);
+  for (let i = 1; i < massPoly.length; i++) {
+    ctx.lineTo(massPoly[i][0], massPoly[i][1]);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  // Ragged boundary brush strokes & vertical ink drips
+  for (let i = 3; i < massPoly.length - 1; i++) {
+    const pt = massPoly[i];
+    const nextPt = massPoly[i + 1];
     drawInkStroke(ctx, [pt, nextPt], rng, {
-      baseWidth: rng.range(3.0, 6.2) * s,
+      baseWidth: rng.range(2.2, 4.4),
       color: THEME_COLORS.ink,
       dryBrush: true,
-      doubleChance: 0.35,
+      doubleChance: 0.25,
     });
 
-    if (structuralRng.chance(0.26)) {
-      const dripLen = structuralRng.range(18, 68) * s;
+    if (structuralRng.chance(0.22)) {
+      const dripLen = structuralRng.range(12, 38);
       drawInkStroke(
         ctx,
         [
-          [pt[0], pt[1] - 3 * s],
-          [pt[0] + rng.range(-2.5, 2.5) * s, pt[1] + dripLen],
+          [pt[0], pt[1] - 2],
+          [pt[0] + rng.range(-1.5, 1.5), pt[1] + dripLen],
         ],
         rng,
-        {
-          baseWidth: rng.range(1.4, 2.8) * s,
-          color: THEME_COLORS.ink,
-          taperScale: 1.2,
-          doubleChance: 0.08,
-        }
+        { baseWidth: rng.range(1.2, 2.2), taperScale: 1.2, doubleChance: 0 }
       );
-      if (rng.chance(0.7)) {
+      if (rng.chance(0.6)) {
         drawInkDot(
           ctx,
-          pt[0] + rng.range(-3, 3) * s,
-          pt[1] + dripLen + rng.range(4, 11) * s,
-          rng.range(1.4, 3.2) * s,
+          pt[0] + rng.range(-2, 2),
+          pt[1] + dripLen + rng.range(3, 8),
+          rng.range(1.1, 2.4),
           rng,
           THEME_COLORS.ink
         );
@@ -222,1022 +451,604 @@ export function drawEvaStageBackground(
     }
   }
 
-  // White speckle holes inside the top-right ink mass
+  // White speckle holes inside the top-right black ink mass (aspect-compensated)
   for (let h = 0; h < 68; h++) {
-    const u = structuralRng.range(0.1, 0.98);
+    const u = structuralRng.range(0.08, 0.98);
     const hx = massStartX + u * (W - massStartX);
-    const maxY = massEndY * u * 0.92;
-    const hy = structuralRng.range(5 * s, Math.max(14 * s, maxY));
-    const hr =
-      (structuralRng.chance(0.2) ? structuralRng.range(3.8, 8.5) : structuralRng.range(1.1, 3.2)) *
-      s;
-    drawInkDot(ctx, hx, hy, hr, rng, THEME_COLORS.paper);
+    const maxY = H * (0.02 + 0.17 * u);
+    const hy = structuralRng.range(5, Math.max(12, maxY));
+    const hr = structuralRng.chance(0.18)
+      ? structuralRng.range(3.0, 6.5)
+      : structuralRng.range(1.0, 2.6);
+    drawInkDot(ctx, hx, hy, hr, rng, THEME_COLORS.paperPure);
   }
 
-  // Thin curved wind lines sweeping across the empty white sky
-  const windLines: Array<[number, number, number, number]> = [
-    [0.18, 0.11, 0.42, 0.09],
-    [0.28, 0.17, 0.56, 0.15],
-    [0.44, 0.22, 0.68, 0.20],
-    [0.14, 0.25, 0.35, 0.23],
+  // 4 thin, curved wind lines across the upper blank white sky
+  const windLines: Array<[Point2D, Point2D, Point2D]> = [
+    [
+      [W * 0.14, H * 0.12],
+      [W * 0.27, H * 0.095],
+      [W * 0.41, H * 0.115],
+    ],
+    [
+      [W * 0.24, H * 0.19],
+      [W * 0.38, H * 0.165],
+      [W * 0.51, H * 0.185],
+    ],
+    [
+      [W * 0.36, H * 0.26],
+      [W * 0.47, H * 0.24],
+      [W * 0.58, H * 0.26],
+    ],
+    [
+      [W * 0.18, H * 0.29],
+      [W * 0.28, H * 0.27],
+      [W * 0.36, H * 0.285],
+    ],
   ];
-  for (const [u0, v0, u1, v1] of windLines) {
-    const pts: Point2D[] = [];
-    for (let k = 0; k <= 10; k++) {
-      const t = k / 10;
-      const wx = W * (u0 + (u1 - u0) * t);
-      const wy = H * (v0 + (v1 - v0) * t) - Math.sin(t * Math.PI) * 16 * s;
-      pts.push([wx, wy]);
-    }
-    drawInkStroke(ctx, pts, rng, {
-      baseWidth: rng.range(1.1, 1.8) * s,
-      color: THEME_COLORS.ink,
-      taperScale: 1.25,
-      doubleChance: 0.15,
+  for (const wl of windLines) {
+    drawInkStroke(ctx, wl, rng, {
+      baseWidth: rng.range(1.0, 1.5),
+      taperScale: 1.35,
+      wobbleScale: 0.4,
       breakChance: 0.08,
+      doubleChance: 0.15,
     });
   }
 
-  // 3 slow plumes of ink smoke rising from behind the distant skyline
-  const smokePlumes = [
-    { baseX: W * 0.38, baseY: horizonY - 28 * s, topX: W * 0.33, topY: H * 0.14, spread: 26 * s },
-    { baseX: W * 0.53, baseY: horizonY - 22 * s, topX: W * 0.49, topY: H * 0.16, spread: 22 * s },
-    { baseX: W * 0.74, baseY: horizonY - 34 * s, topX: W * 0.78, topY: H * 0.18, spread: 28 * s },
+  // 3 slow plumes of ink smoke rising from behind the skyline (delicate contour wisps + stipple)
+  const smokeAnchors: Array<{ x: number; baseY: number; topY: number; driftX: number }> = [
+    { x: W * 0.27, baseY: horizonY - H * 0.14, topY: H * 0.13, driftX: -18 },
+    { x: W * 0.52, baseY: horizonY - H * 0.06, topY: H * 0.28, driftX: 14 },
+    { x: W * 0.75, baseY: horizonY - H * 0.16, topY: H * 0.22, driftX: -18 },
   ];
-  for (const plume of smokePlumes) {
-    for (let strand = -2; strand <= 2; strand++) {
-      const sPts: Point2D[] = [];
-      const steps = 14;
-      for (let k = 0; k <= steps; k++) {
-        const t = k / steps;
-        const widen = Math.pow(t, 0.75) * plume.spread;
-        const sway = Math.sin(t * Math.PI * 2.2 + strand * 0.8) * (8 + t * 14) * s;
-        const px =
-          plume.baseX + (plume.topX - plume.baseX) * t + sway + strand * 0.38 * widen;
-        const py = plume.baseY + (plume.topY - plume.baseY) * t;
-        sPts.push([px, py]);
-
-        // Ascending smoke stipple & ash flecks
-        if (rng.chance(0.42)) {
-          drawInkDot(
-            ctx,
-            px + rng.range(-widen * 0.6, widen * 0.6),
-            py + rng.range(-8 * s, 8 * s),
-            rng.range(0.8, 1.8) * s,
-            rng,
-            THEME_COLORS.ink
-          );
-        }
+  for (const sm of smokeAnchors) {
+    for (let strand = 0; strand < 2; strand++) {
+      const pts: Point2D[] = [];
+      const steps = 10;
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const spread = (strand - 0.5) * (5 + t * 11);
+        const sx =
+          sm.x +
+          spread +
+          Math.sin(t * Math.PI * 1.4 + strand) * 5 +
+          t * sm.driftX;
+        const sy = sm.baseY - t * (sm.baseY - sm.topY);
+        pts.push([sx, sy]);
       }
-      drawInkStroke(ctx, sPts, rng, {
-        baseWidth: rng.range(0.9, 1.5) * s,
-        color: THEME_COLORS.ink,
-        wobbleScale: 0.9,
-        taperScale: 1.3,
-        breakChance: 0.22,
-        doubleChance: 0.12,
+      drawInkStroke(ctx, pts, rng, {
+        baseWidth: rng.range(0.9, 1.25),
+        taperScale: 1.4,
+        wobbleScale: 0.55,
+        breakChance: 0.25,
+        doubleChance: 0.1,
       });
     }
+    for (let d = 0; d < 10; d++) {
+      const t = rng.next();
+      const sx = sm.x + t * sm.driftX + rng.range(-10, 10);
+      const sy = sm.baseY - t * (sm.baseY - sm.topY) + rng.range(-5, 5);
+      drawInkDot(ctx, sx, sy, rng.range(0.7, 1.3), rng, THEME_COLORS.ink);
+    }
   }
 
-  recorder.captureStage(canvas, 0.02, 0.05, 'top-down');
+  recorder.captureStage(canvas, 0.0, 0.25, 'top-down');
 
   // ===========================================================================
-  // 2. FAR DISTANCE: JAGGED ROW OF SNAPPED SKYSCRAPERS + TOPPLED BRIDGE TOWER
-  // Thin broken lines, sparse vertical hatching, no solid black, tiny windows
+  // STAGE 2 (0.50): FAR SKYLINE — SNAPPED TOWERS & TOPPLED BRIDGE SKYSCRAPER
   // ===========================================================================
-  interface FarTowerSpec {
-    x: number;
-    w: number;
-    h: number;
-    leanDeg: number;
-    roofLeftDrop: number;
-    roofRightDrop: number;
-  }
-
-  const farTowers: FarTowerSpec[] = [
-    { x: 0.16 * W, w: 0.042 * W, h: 0.11 * H, leanDeg: 2.5, roofLeftDrop: 8 * s, roofRightDrop: 18 * s },
-    { x: 0.21 * W, w: 0.048 * W, h: 0.15 * H, leanDeg: -3.2, roofLeftDrop: 22 * s, roofRightDrop: 6 * s },
-    { x: 0.34 * W, w: 0.044 * W, h: 0.16 * H, leanDeg: 1.8, roofLeftDrop: 14 * s, roofRightDrop: 24 * s },
-    { x: 0.39 * W, w: 0.052 * W, h: 0.21 * H, leanDeg: -2.0, roofLeftDrop: 6 * s, roofRightDrop: 28 * s },
-    // Tower that snaps and topples across its right neighbor like a bridge:
-    { x: 0.455 * W, w: 0.044 * W, h: 0.18 * H, leanDeg: 6.5, roofLeftDrop: 10 * s, roofRightDrop: 20 * s },
-    // Neighboring tower receiving the toppled bridge section:
-    { x: 0.535 * W, w: 0.050 * W, h: 0.19 * H, leanDeg: -1.5, roofLeftDrop: 18 * s, roofRightDrop: 8 * s },
-    { x: 0.592 * W, w: 0.040 * W, h: 0.13 * H, leanDeg: 4.2, roofLeftDrop: 12 * s, roofRightDrop: 4 * s },
-    { x: 0.735 * W, w: 0.048 * W, h: 0.17 * H, leanDeg: -3.8, roofLeftDrop: 20 * s, roofRightDrop: 10 * s },
-    { x: 0.790 * W, w: 0.042 * W, h: 0.12 * H, leanDeg: 2.0, roofLeftDrop: 6 * s, roofRightDrop: 16 * s },
-    { x: 0.935 * W, w: 0.046 * W, h: 0.14 * H, leanDeg: -4.5, roofLeftDrop: 15 * s, roofRightDrop: 5 * s },
+  // Keep center-corridor buildings low (topY >= 0.465H) so the red orb (v ~ 0.39)
+  // and sight line (v ~ 0.42) sit in open white sky above the distant skyline!
+  const farSkyline = [
+    { x: W * 0.18, botY: horizonY, topY: H * 0.33, litW: 26, shadowW: 12, leanPx: 5 },
+    { x: W * 0.23, botY: horizonY, topY: H * 0.30, litW: 28, shadowW: 13, leanPx: -4 },
+    // Center avenue gap (kept low below sight line & orb)
+    { x: W * 0.40, botY: horizonY, topY: H * 0.465, litW: 20, shadowW: 9, leanPx: 3 },
+    { x: W * 0.445, botY: horizonY, topY: H * 0.472, litW: 22, shadowW: 9, leanPx: -3 },
+    { x: W * 0.545, botY: horizonY, topY: H * 0.468, litW: 22, shadowW: 10, leanPx: -4, shadowOnLeft: true },
+    { x: W * 0.60, botY: horizonY, topY: H * 0.465, litW: 22, shadowW: 10, leanPx: 4, shadowOnLeft: true },
+    // Right-side distant towers
+    { x: W * 0.81, botY: horizonY, topY: H * 0.32, litW: 30, shadowW: 14, leanPx: -6, shadowOnLeft: true },
+    { x: W * 0.875, botY: horizonY, topY: H * 0.35, litW: 28, shadowW: 13, leanPx: 5, shadowOnLeft: true },
   ];
 
-  const drawFarSnappedTower = (t: FarTowerSpec) => {
-    const leanShift = Math.tan((t.leanDeg * Math.PI) / 180) * t.h;
-    const bl: Point2D = [t.x, horizonY];
-    const br: Point2D = [t.x + t.w, horizonY];
-    const tl: Point2D = [t.x + leanShift, horizonY - t.h + t.roofLeftDrop];
-    const tm1: Point2D = [
-      t.x + t.w * 0.38 + leanShift,
-      horizonY - t.h - 4 * s,
-    ];
-    const tm2: Point2D = [
-      t.x + t.w * 0.68 + leanShift,
-      horizonY - t.h + 9 * s,
-    ];
-    const tr: Point2D = [t.x + t.w + leanShift, horizonY - t.h + t.roofRightDrop];
-
-    const poly: Point2D[] = [bl, tl, tm1, tm2, tr, br];
-    fillRoughenedPolygon(ctx, poly, rng, THEME_COLORS.paper, 1.2 * s);
-
-    // Sparse vertical hatching on the right-hand shadow half (no solid black)
-    const shadowPoly: Point2D[] = [
-      [(bl[0] + br[0]) * 0.52, horizonY],
-      [tm2[0], tm2[1]],
-      tr,
-      br,
-    ];
-    hatchPolygonVerticalOrAngled(ctx, shadowPoly, rng, {
-      angleRad: Math.PI * 0.5,
-      spacing: 8.5 * s,
-      baseWidth: 1.05 * s,
-      breakChance: 0.25,
-      stippleChance: 0.35,
-    });
-
-    // Thin, broken outline strokes
-    for (let i = 0; i < poly.length; i++) {
-      drawInkStroke(ctx, [poly[i], poly[(i + 1) % poly.length]], rng, {
-        baseWidth: 1.35 * s,
-        color: THEME_COLORS.ink,
-        wobbleScale: 0.7,
-        breakChance: 0.18,
-        doubleChance: 0.2,
-      });
-    }
-
-    // Protruding rebar needles at snapped roof
-    for (let r = 0; r < 3; r++) {
-      const rx = tl[0] + (tr[0] - tl[0]) * (0.2 + r * 0.3);
-      const ry = tl[1] + (tr[1] - tl[1]) * (0.2 + r * 0.3);
-      drawInkStroke(
-        ctx,
-        [
-          [rx, ry],
-          [rx + rng.range(-3, 3) * s, ry - rng.range(7, 16) * s],
-        ],
-        rng,
-        { baseWidth: 0.95 * s, color: THEME_COLORS.ink, doubleChance: 0 }
-      );
-    }
-
-    // Tiny empty rectangular windows, with a few blacked out
-    const cols = 3;
-    const rows = Math.max(3, Math.floor(t.h / (18 * s)));
-    for (let r = 1; r < rows; r++) {
-      const vf = r / (rows + 0.5);
-      const rowY = horizonY - t.h * (1 - vf * 0.82);
-      const rowShift = leanShift * (1 - vf * 0.82);
-      for (let c = 0; c < cols; c++) {
-        if (rng.chance(0.22)) continue;
-        const wx = t.x + rowShift + (c + 0.6) * (t.w / (cols + 0.8));
-        const wy = rowY;
-        const ww = 4.2 * s;
-        const wh = 6.2 * s;
-        const wPoly: Point2D[] = [
-          [wx, wy],
-          [wx + ww, wy],
-          [wx + ww, wy + wh],
-          [wx, wy + wh],
-        ];
-        if (rng.chance(0.18)) {
-          // A few windows are blacked out
-          fillRoughenedPolygon(ctx, wPoly, rng, THEME_COLORS.ink, 0.4 * s);
-        } else {
-          outlinePolygonWithInk(ctx, wPoly, rng, {
-            baseWidth: 0.85 * s,
-            color: THEME_COLORS.ink,
-            wobbleScale: 0.35,
-            doubleChance: 0,
-          });
-        }
-      }
-    }
-  };
-
-  for (const ft of farTowers) {
-    drawFarSnappedTower(ft);
+  for (const fb of farSkyline) {
+    drawRuinedBuilding3D(ctx, rng, { ...fb, isFar: true });
   }
 
-  // Toppled upper skyscraper section fallen diagonally across its neighbor like a bridge
+  // One distant skyscraper toppled diagonally across its neighbor like a bridge (at u = 0.45..0.55, y = 0.47..0.50H)
   const bridgePoly: Point2D[] = [
-    [0.468 * W, horizonY - 0.145 * H],
-    [0.572 * W, horizonY - 0.182 * H],
-    [0.584 * W, horizonY - 0.148 * H],
-    [0.476 * W, horizonY - 0.112 * H],
+    [W * 0.45, H * 0.482],
+    [W * 0.55, H * 0.462],
+    [W * 0.554, H * 0.482],
+    [W * 0.454, H * 0.502],
   ];
-  fillRoughenedPolygon(ctx, bridgePoly, rng, THEME_COLORS.paper, 1.0 * s);
-  hatchPolygonVerticalOrAngled(ctx, bridgePoly, rng, {
+  fillRoughenedPolygon(ctx, bridgePoly, rng, THEME_COLORS.paperPure, 0.8);
+  hatchPolygonClipped(ctx, bridgePoly, rng, {
     angleRad: Math.PI * 0.5,
-    spacing: 7.5 * s,
-    baseWidth: 1.1 * s,
-    breakChance: 0.2,
+    spacing: 7.5,
+    baseWidth: 1.1,
+    toneAt: (_u, v) => (v > 0.55 ? 0.55 : 0.0),
   });
   outlinePolygonWithInk(ctx, bridgePoly, rng, {
-    baseWidth: 1.45 * s,
-    color: THEME_COLORS.ink,
-    wobbleScale: 0.65,
-    doubleChance: 0.25,
+    baseWidth: 1.5,
+    doubleChance: 0.15,
     breakChance: 0.12,
+    wobbleScale: 0.4,
   });
-  // Tiny tilted windows on the toppled bridge tower
-  for (let k = 0; k < 5; k++) {
-    const u = (k + 0.8) / 6.2;
-    const bx = bridgePoly[0][0] + (bridgePoly[1][0] - bridgePoly[0][0]) * u;
-    const by = bridgePoly[0][1] + (bridgePoly[1][1] - bridgePoly[0][1]) * u + 6 * s;
-    const bwPoly: Point2D[] = [
-      [bx, by],
-      [bx + 6 * s, by - 2 * s],
-      [bx + 7 * s, by + 3 * s],
-      [bx + 1 * s, by + 5 * s],
-    ];
-    if (k === 2) {
-      fillRoughenedPolygon(ctx, bwPoly, rng, THEME_COLORS.ink, 0.3 * s);
-    } else {
-      outlinePolygonWithInk(ctx, bwPoly, rng, {
-        baseWidth: 0.85 * s,
-        color: THEME_COLORS.ink,
-        doubleChance: 0,
-      });
-    }
-  }
 
-  recorder.captureStage(canvas, 0.05, 0.08, 'left-right');
+  recorder.captureStage(canvas, 0.25, 0.5, 'top-down');
 
   // ===========================================================================
-  // 3. CLOSER IN: 3 ENORMOUS SPLIT TOWERS WITH PEELING FLOORS & GIRDER RIBS,
-  //    BENT CONSTRUCTION CRANE, AND SNAPPED MID-AIR HIGHWAY OVERPASS
+  // STAGE 3 (0.75): MIDGROUND SPLIT TOWERS, SNAPPED OVERPASS & LEANING CRANE
   // ===========================================================================
-  const drawSplitMegatower = (
-    baseX: number,
-    baseY: number,
-    width: number,
-    height: number,
-    leanLeftDeg: number,
-    leanRightDeg: number
-  ) => {
-    const splitW = width * 0.14;
-    const halfW = (width - splitW) * 0.5;
-    const shiftL = Math.tan((leanLeftDeg * Math.PI) / 180) * height;
-    const shiftR = Math.tan((leanRightDeg * Math.PI) / 180) * height;
+  // 3 enormous split towers framing the left and right sides of the collapsed avenue,
+  // leaving the center sky corridor (u = 0.36..0.67) wide open for the red orb & sight line.
+  drawRuinedBuilding3D(ctx, rng, {
+    x: W * 0.285,
+    botY: horizonY + 6,
+    topY: H * 0.25,
+    litW: 46,
+    shadowW: 20,
+    leanPx: 6,
+    splitGapW: 10,
+    splitDepthFrac: 0.54,
+    peelingFloors: true,
+  });
 
-    // Left split half
-    const leftHalf: Point2D[] = [
-      [baseX, baseY],
-      [baseX + shiftL, baseY - height + 18 * s],
-      [baseX + halfW * 0.55 + shiftL, baseY - height - 6 * s],
-      [baseX + halfW + shiftL, baseY - height + 12 * s],
-      [baseX + halfW + splitW * 0.25, baseY - height * 0.38],
-      [baseX + halfW, baseY],
-    ];
-    // Right split half (shadowed face)
-    const rightHalf: Point2D[] = [
-      [baseX + halfW + splitW * 0.4, baseY],
-      [baseX + halfW + splitW * 0.65, baseY - height * 0.42],
-      [baseX + halfW + splitW + shiftR, baseY - height + 24 * s],
-      [baseX + width - halfW * 0.35 + shiftR, baseY - height + 4 * s],
-      [baseX + width + shiftR, baseY - height + 28 * s],
-      [baseX + width, baseY],
-    ];
+  drawRuinedBuilding3D(ctx, rng, {
+    x: W * 0.675,
+    botY: horizonY + 6,
+    topY: H * 0.26,
+    litW: 50,
+    shadowW: 22,
+    shadowOnLeft: true,
+    leanPx: -6,
+    splitGapW: 10,
+    splitDepthFrac: 0.58,
+    peelingFloors: true,
+  });
 
-    fillRoughenedPolygon(ctx, leftHalf, rng, THEME_COLORS.paper, 1.6 * s);
-    fillRoughenedPolygon(ctx, rightHalf, rng, THEME_COLORS.paper, 1.6 * s);
+  drawRuinedBuilding3D(ctx, rng, {
+    x: W * 0.755,
+    botY: horizonY + 8,
+    topY: H * 0.28,
+    litW: 44,
+    shadowW: 19,
+    shadowOnLeft: true,
+    leanPx: 5,
+    splitGapW: 9,
+    splitDepthFrac: 0.48,
+    peelingFloors: true,
+  });
 
-    // Heavier vertical hatching on the shadowed faces
-    hatchPolygonVerticalOrAngled(ctx, rightHalf, rng, {
-      angleRad: Math.PI * 0.5,
-      spacing: 4.8 * s,
-      baseWidth: 1.75 * s,
-      breakChance: 0.1,
-      doubleChance: 0.18,
-    });
-    // Lighter vertical hatching along the inner split edge of the left half
-    const leftInnerShadow: Point2D[] = [
-      [baseX + halfW * 0.55, baseY],
-      [baseX + halfW * 0.62 + shiftL, baseY - height + 10 * s],
-      leftHalf[3],
-      leftHalf[4],
-      leftHalf[5],
-    ];
-    hatchPolygonVerticalOrAngled(ctx, leftInnerShadow, rng, {
-      angleRad: Math.PI * 0.5,
-      spacing: 6.8 * s,
-      baseWidth: 1.35 * s,
-      breakChance: 0.18,
-    });
+  // Bent construction crane rising from the right-center tower and leaning high OVER the orb
+  const mastBaseX = W * 0.715;
+  const mastBaseY = horizonY - H * 0.21;
+  const mastTopX = W * 0.692;
+  const mastTopY = H * 0.165;
 
-    // Chipped, uneven outlines on both halves
-    outlinePolygonWithInk(ctx, leftHalf, rng, {
-      baseWidth: 2.3 * s,
-      color: THEME_COLORS.ink,
-      wobbleScale: 0.95,
-      doubleChance: 0.4,
-      dryBrush: true,
-    });
-    outlinePolygonWithInk(ctx, rightHalf, rng, {
-      baseWidth: 2.4 * s,
-      color: THEME_COLORS.ink,
-      wobbleScale: 0.95,
-      doubleChance: 0.4,
-      dryBrush: true,
-    });
-
-    // Peeling floor slabs & exposed girders sticking out like ribs down the split chasm
-    const ribFloors = 9;
-    for (let f = 1; f <= ribFloors; f++) {
-      const vf = f / (ribFloors + 0.6);
-      const fy = baseY - height * (1 - vf * 0.88);
-      const lx = baseX + halfW + shiftL * (1 - vf);
-      const rx = baseX + halfW + splitW + shiftR * (1 - vf);
-
-      // Peeling floor slab curling downward into the split gap
-      const peelDrop = (4 + (f % 3) * 5) * s;
-      drawInkStroke(
-        ctx,
-        [
-          [lx - halfW * 0.65, fy],
-          [lx, fy + 2 * s],
-          [lx + splitW * 0.55, fy + peelDrop],
-        ],
-        rng,
-        { baseWidth: 1.9 * s, color: THEME_COLORS.ink, wobbleScale: 0.7, doubleChance: 0.25 }
-      );
-
-      // Exposed I-beam girder ribs sticking out from both sides of the split
-      drawInkStroke(
-        ctx,
-        [
-          [rx + halfW * 0.5, fy + 3 * s],
-          [rx, fy + 3 * s],
-          [rx - splitW * 0.62, fy + 3 * s + (f % 2 === 0 ? -4 : 5) * s],
-        ],
-        rng,
-        { baseWidth: 1.7 * s, color: THEME_COLORS.ink, wobbleScale: 0.5, doubleChance: 0.15 }
-      );
-
-      // Outer wall rib girders sticking out into open air
-      if (f % 2 === 1) {
-        const outLeftX = baseX + shiftL * (1 - vf);
-        drawInkStroke(
-          ctx,
-          [
-            [outLeftX + 6 * s, fy],
-            [outLeftX - rng.range(10, 20) * s, fy + rng.range(-3, 5) * s],
-          ],
-          rng,
-          { baseWidth: 1.5 * s, color: THEME_COLORS.ink, doubleChance: 0 }
-        );
-        const outRightX = baseX + width + shiftR * (1 - vf);
-        drawInkStroke(
-          ctx,
-          [
-            [outRightX - 6 * s, fy],
-            [outRightX + rng.range(10, 22) * s, fy + rng.range(-3, 6) * s],
-          ],
-          rng,
-          { baseWidth: 1.6 * s, color: THEME_COLORS.ink, doubleChance: 0 }
-        );
-      }
-    }
-
-    // Window bays on the lit left half
-    const winRows = 8;
-    for (let r = 1; r <= winRows; r++) {
-      const vf = r / (winRows + 1);
-      const wy = baseY - height * (1 - vf * 0.85);
-      const wxBase = baseX + shiftL * (1 - vf) + 7 * s;
-      for (let c = 0; c < 2; c++) {
-        const wx = wxBase + c * 11 * s;
-        const wPoly: Point2D[] = [
-          [wx, wy],
-          [wx + 6 * s, wy],
-          [wx + 6 * s, wy + 9 * s],
-          [wx, wy + 9 * s],
-        ];
-        if ((r + c) % 5 === 0) {
-          fillRoughenedPolygon(ctx, wPoly, rng, THEME_COLORS.ink, 0.4 * s);
-        } else {
-          outlinePolygonWithInk(ctx, wPoly, rng, {
-            baseWidth: 1.0 * s,
-            color: THEME_COLORS.ink,
-            doubleChance: 0,
-          });
-        }
-      }
-    }
-  };
-
-  // Midground Split Tower 1 (Left-center behind Eva's shoulder/head)
-  drawSplitMegatower(0.24 * W, horizonY + 18 * s, 0.105 * W, 0.34 * H, -3.5, 1.5);
-  // Midground Split Tower 2 (Right-center flanking the avenue)
-  drawSplitMegatower(0.625 * W, horizonY + 24 * s, 0.118 * W, 0.37 * H, -4.2, 2.2);
-  // Midground Split Tower 3 (Far-right foreground flank)
-  drawSplitMegatower(0.815 * W, horizonY + 48 * s, 0.132 * W, 0.36 * H, -2.0, 3.8);
-
-  // Bent construction crane leaning across the scene from behind Split Tower 2
-  const craneBaseX = 0.695 * W;
-  const craneBaseY = horizonY - 0.18 * H;
-  const craneBuckleX = 0.675 * W;
-  const craneBuckleY = 0.165 * H;
-  const craneTipX = 0.415 * W;
-  const craneTipY = 0.225 * H;
-  const craneCounterX = 0.755 * W;
-  const craneCounterY = 0.148 * H;
-
-  // Vertical crane mast (below buckle)
-  const mastW = 11 * s;
   drawInkStroke(
     ctx,
     [
-      [craneBaseX - mastW * 0.5, craneBaseY],
-      [craneBuckleX - mastW * 0.4, craneBuckleY],
+      [mastBaseX - 5, mastBaseY],
+      [mastTopX - 3, mastTopY],
     ],
     rng,
-    { baseWidth: 1.9 * s, color: THEME_COLORS.ink, doubleChance: 0.25 }
+    { baseWidth: 1.7, wobbleScale: 0.4 }
   );
   drawInkStroke(
     ctx,
     [
-      [craneBaseX + mastW * 0.5, craneBaseY],
-      [craneBuckleX + mastW * 0.4, craneBuckleY],
+      [mastBaseX + 5, mastBaseY],
+      [mastTopX + 3, mastTopY],
     ],
     rng,
-    { baseWidth: 1.9 * s, color: THEME_COLORS.ink, doubleChance: 0.25 }
+    { baseWidth: 1.7, wobbleScale: 0.4 }
   );
-  // Mast X-bracing
-  const mastSegs = 8;
-  for (let m = 0; m < mastSegs; m++) {
-    const t0 = m / mastSegs;
-    const t1 = (m + 1) / mastSegs;
-    const x0 = craneBaseX + (craneBuckleX - craneBaseX) * t0;
-    const y0 = craneBaseY + (craneBuckleY - craneBaseY) * t0;
-    const x1 = craneBaseX + (craneBuckleX - craneBaseX) * t1;
-    const y1 = craneBaseY + (craneBuckleY - craneBaseY) * t1;
-    drawInkStroke(
-      ctx,
-      [
-        [x0 - mastW * 0.45, y0],
-        [x1 + mastW * 0.45, y1],
-      ],
-      rng,
-      { baseWidth: 1.1 * s, color: THEME_COLORS.ink, doubleChance: 0 }
-    );
-    drawInkStroke(
-      ctx,
-      [
-        [x0 + mastW * 0.45, y0],
-        [x1 - mastW * 0.45, y1],
-      ],
-      rng,
-      { baseWidth: 1.1 * s, color: THEME_COLORS.ink, doubleChance: 0 }
-    );
+  for (let i = 0; i < 8; i++) {
+    const t0 = i / 8;
+    const t1 = (i + 1) / 8;
+    const x0 = mastBaseX + (mastTopX - mastBaseX) * t0 + (i % 2 === 0 ? -4 : 4);
+    const y0 = mastBaseY + (mastTopY - mastBaseY) * t0;
+    const x1 = mastBaseX + (mastTopX - mastBaseX) * t1 + (i % 2 === 0 ? 4 : -4);
+    const y1 = mastBaseY + (mastTopY - mastBaseY) * t1;
+    drawInkStroke(ctx, [[x0, y0], [x1, y1]], rng, { baseWidth: 1.1, wobbleScale: 0.3 });
   }
 
-  // Bent jib boom leaning diagonally left across the sky
-  const jibSegs = 12;
-  for (let j = 0; j < jibSegs; j++) {
-    const t0 = j / jibSegs;
-    const t1 = (j + 1) / jibSegs;
-    // Slight downward kink mid-boom
-    const kink0 = Math.sin(t0 * Math.PI) * 12 * s;
-    const kink1 = Math.sin(t1 * Math.PI) * 12 * s;
-    const x0 = craneBuckleX + (craneTipX - craneBuckleX) * t0;
-    const y0 = craneBuckleY + (craneTipY - craneBuckleY) * t0 + kink0;
-    const x1 = craneBuckleX + (craneTipX - craneBuckleX) * t1;
-    const y1 = craneBuckleY + (craneTipY - craneBuckleY) * t1 + kink1;
-    const h0 = (1 - t0 * 0.55) * 11 * s;
-    const h1 = (1 - t1 * 0.55) * 11 * s;
+  // Bent crane jib boom kinked downward at the midpoint, staying clear of Eva's horn tip (u ~ 0.46)
+  const jibKneeX = W * 0.595;
+  const jibKneeY = H * 0.155;
+  const jibTipX = W * 0.525;
+  const jibTipY = H * 0.215;
+  const jibCounterX = W * 0.748;
+  const jibCounterY = H * 0.175;
 
-    drawInkStroke(ctx, [[x0, y0], [x1, y1]], rng, {
-      baseWidth: 1.8 * s,
-      color: THEME_COLORS.ink,
-      doubleChance: 0.2,
-    });
-    drawInkStroke(ctx, [[x0, y0 - h0], [x1, y1 - h1]], rng, {
-      baseWidth: 1.4 * s,
-      color: THEME_COLORS.ink,
-      doubleChance: 0,
-    });
-    drawInkStroke(ctx, [[x0, y0], [x1, y1 - h1]], rng, {
-      baseWidth: 1.0 * s,
-      color: THEME_COLORS.ink,
-      doubleChance: 0,
-    });
-  }
-
-  // Counter-jib & counterweight block on right
   drawInkStroke(
     ctx,
     [
-      [craneBuckleX, craneBuckleY],
-      [craneCounterX, craneCounterY],
-      [craneCounterX, craneCounterY - 8 * s],
-      [craneBuckleX, craneBuckleY - 12 * s],
+      [jibCounterX, jibCounterY],
+      [mastTopX, mastTopY],
+      [jibKneeX, jibKneeY],
+      [jibTipX, jibTipY],
     ],
     rng,
-    { baseWidth: 1.6 * s, color: THEME_COLORS.ink, doubleChance: 0.2 }
+    { baseWidth: 1.8, wobbleScale: 0.45, doubleChance: 0.2 }
   );
-  fillRoughenedPolygon(
+  drawInkStroke(
     ctx,
     [
-      [craneCounterX - 14 * s, craneCounterY],
-      [craneCounterX + 4 * s, craneCounterY - 2 * s],
-      [craneCounterX + 4 * s, craneCounterY + 14 * s],
-      [craneCounterX - 14 * s, craneCounterY + 15 * s],
+      [jibCounterX, jibCounterY + 6],
+      [mastTopX, mastTopY + 7],
+      [jibKneeX, jibKneeY + 6],
+      [jibTipX, jibTipY + 4],
     ],
     rng,
-    THEME_COLORS.ink,
-    0.8 * s
+    { baseWidth: 1.2, wobbleScale: 0.4 }
   );
+  // Dangling snapped crane cable from jib tip
+  drawInkStroke(
+    ctx,
+    [
+      [jibTipX + 2, jibTipY + 4],
+      [jibTipX + 1, jibTipY + 36],
+    ],
+    rng,
+    { baseWidth: 1.1, taperScale: 1.2, wobbleScale: 0.35 }
+  );
+  // Sparse red aircraft warning beacon dot on the crane peak (#D4141C)
+  drawInkDot(ctx, mastTopX, mastTopY - 4, 3.2, rng, THEME_COLORS.red);
 
-  // Dangling snapped hoist cables hanging from the bent crane jib
-  for (const uHook of [0.58, 0.88, 0.98]) {
-    const hx = craneBuckleX + (craneTipX - craneBuckleX) * uHook;
-    const hy =
-      craneBuckleY +
-      (craneTipY - craneBuckleY) * uHook +
-      Math.sin(uHook * Math.PI) * 12 * s;
-    const dropH = (42 + uHook * 38) * s;
-    drawInkStroke(
-      ctx,
-      [
-        [hx, hy],
-        [hx - 5 * s, hy + dropH * 0.6],
-        [hx + 3 * s, hy + dropH],
-      ],
-      rng,
-      { baseWidth: 1.2 * s, color: THEME_COLORS.ink, wobbleScale: 0.8, doubleChance: 0 }
-    );
-  }
-  // Sparse red aviation warning beacon dot on the buckled crane peak
-  drawInkDot(ctx, craneBuckleX, craneBuckleY - 15 * s, 3.2 * s, rng, THEME_COLORS.red);
-
-  // Snapped Highway Overpass hanging over the street in mid-air
-  const overpassDeckTop: Point2D[] = [
-    [W, horizonY + 16 * s],
-    [0.78 * W, horizonY - 12 * s],
-    [0.58 * W, horizonY - 24 * s],
-    // Broken jagged edge hanging over the street in mid-air:
-    [0.495 * W, horizonY - 22 * s],
-    [0.482 * W, horizonY - 10 * s],
-    [0.502 * W, horizonY - 2 * s],
-    [0.775 * W, horizonY + 12 * s],
-    [W, horizonY + 46 * s],
+  // Highway overpass snapping off in mid-air from the left side over the street (below sight line)
+  const overDeckTop: Point2D[] = [
+    [W * 0.22, H * 0.525],
+    [W * 0.435, H * 0.492],
+    [W * 0.442, H * 0.506],
+    [W * 0.22, H * 0.544],
   ];
-  const overpassUnderside: Point2D[] = [
-    [0.482 * W, horizonY - 10 * s],
-    [0.502 * W, horizonY - 2 * s],
-    [0.775 * W, horizonY + 12 * s],
-    [W, horizonY + 46 * s],
-    [W, horizonY + 72 * s],
-    [0.765 * W, horizonY + 34 * s],
-    [0.508 * W, horizonY + 14 * s],
+  const overDeckUnderside: Point2D[] = [
+    [W * 0.22, H * 0.544],
+    [W * 0.442, H * 0.506],
+    [W * 0.434, H * 0.532],
+    [W * 0.22, H * 0.574],
   ];
-
-  fillRoughenedPolygon(ctx, overpassDeckTop, rng, THEME_COLORS.paper, 1.5 * s);
-  fillRoughenedPolygon(ctx, overpassUnderside, rng, THEME_COLORS.paper, 1.5 * s);
-
-  // Heavy vertical hatching on the shadowed underside of the snapped overpass
-  hatchPolygonVerticalOrAngled(ctx, overpassUnderside, rng, {
+  // Concrete support pier under the overpass
+  const pierPoly: Point2D[] = [
+    [W * 0.335, H * 0.525],
+    [W * 0.358, H * 0.521],
+    [W * 0.362, H * 0.625],
+    [W * 0.332, H * 0.625],
+  ];
+  fillRoughenedPolygon(ctx, pierPoly, rng, THEME_COLORS.paperPure, 0.8);
+  hatchPolygonClipped(ctx, pierPoly, rng, {
     angleRad: Math.PI * 0.5,
-    spacing: 4.2 * s,
-    baseWidth: 1.9 * s,
-    breakChance: 0.08,
-    doubleChance: 0.25,
+    spacing: 5.0,
+    baseWidth: 1.4,
+    toneAt: (u) => 0.45 + u * 0.4,
   });
+  outlinePolygonWithInk(ctx, pierPoly, rng, { baseWidth: 1.9, wobbleScale: 0.4 });
 
-  outlinePolygonWithInk(ctx, overpassDeckTop, rng, {
-    baseWidth: 2.5 * s,
-    color: THEME_COLORS.ink,
-    wobbleScale: 0.9,
-    doubleChance: 0.4,
-    dryBrush: true,
+  fillRoughenedPolygon(ctx, overDeckTop, rng, THEME_COLORS.paperPure, 0.9);
+  fillRoughenedPolygon(ctx, overDeckUnderside, rng, THEME_COLORS.paperPure, 0.9);
+  hatchPolygonClipped(ctx, overDeckUnderside, rng, {
+    angleRad: Math.PI * 0.5,
+    spacing: 4.8,
+    baseWidth: 1.5,
+    toneAt: () => 0.72,
   });
-  outlinePolygonWithInk(ctx, overpassUnderside, rng, {
-    baseWidth: 2.6 * s,
-    color: THEME_COLORS.ink,
-    wobbleScale: 0.9,
-    doubleChance: 0.4,
-    dryBrush: true,
-  });
+  outlinePolygonWithInk(ctx, overDeckTop, rng, { baseWidth: 2.0, wobbleScale: 0.45 });
+  outlinePolygonWithInk(ctx, overDeckUnderside, rng, { baseWidth: 2.1, wobbleScale: 0.45 });
 
-  // Twisted rebar strands and dangling concrete chunks hanging from the snapped overpass tip
-  for (let r = 0; r < 7; r++) {
-    const rx = (0.482 + r * 0.005) * W;
-    const ry = horizonY - (16 - r * 4) * s;
-    const hangLen = rng.range(18, 44) * s;
+  // Broken rebar & concrete chunks hanging from the snapped overpass edge
+  for (let r = 0; r < 5; r++) {
+    const rx = W * 0.438 + rng.range(-3, 5);
+    const ry = H * 0.502 + r * 5.5;
     drawInkStroke(
       ctx,
       [
         [rx, ry],
-        [rx - rng.range(6, 16) * s, ry + hangLen * 0.5],
-        [rx - rng.range(4, 14) * s, ry + hangLen],
+        [rx + rng.range(10, 20), ry + rng.range(8, 18)],
       ],
       rng,
-      { baseWidth: 1.3 * s, color: THEME_COLORS.ink, wobbleScale: 0.9, doubleChance: 0.15 }
+      { baseWidth: 1.2, taperScale: 1.3, wobbleScale: 0.45 }
     );
-    if (r % 2 === 0) {
-      // Hanging concrete block on rebar
-      const bx = rx - 10 * s;
-      const by = ry + hangLen * 0.75;
-      fillRoughenedPolygon(
+  }
+
+  recorder.captureStage(canvas, 0.5, 0.75, 'bottom-up');
+
+  // ===========================================================================
+  // STAGE 4 (1.00): ONE-POINT PERSPECTIVE STREET, DASHED LANES, POLES & CABLES
+  // ===========================================================================
+  // Clean warm paper ground plane below horizon
+  const groundPoly: Point2D[] = [
+    [0, horizonY],
+    [W, horizonY],
+    [W, H],
+    [0, H],
+  ];
+  fillRoughenedPolygon(ctx, groundPoly, rng, THEME_COLORS.paper, 1.0);
+
+  // Broken horizontal horizon ridge line
+  for (let s = 0; s < 6; s++) {
+    const x0 = (s / 6) * W;
+    const x1 = ((s + 0.85) / 6) * W;
+    drawInkStroke(
+      ctx,
+      [
+        [x0, horizonY + rng.range(-2, 2)],
+        [x1, horizonY + rng.range(-2, 2)],
+      ],
+      rng,
+      { baseWidth: 1.6, breakChance: 0.18, wobbleScale: 0.4 }
+    );
+  }
+
+  // One-point perspective avenue curb & sidewalk lines radiating from (vpX, vpY)
+  const streetRays: Array<{ end: Point2D; width: number }> = [
+    { end: [W * 0.14, H], width: 2.2 }, // left outer sidewalk edge
+    { end: [W * 0.24, H], width: 2.6 }, // left curb
+    { end: [W * 0.255, H], width: 1.4 }, // left curb lip
+    { end: [W * 0.82, H], width: 2.6 }, // right curb
+    { end: [W * 0.835, H], width: 1.4 }, // right curb lip
+    { end: [W * 0.95, H], width: 2.0 }, // right outer sidewalk edge
+  ];
+
+  for (const ray of streetRays) {
+    const segs = 7;
+    for (let i = 0; i < segs; i++) {
+      const t0 = Math.pow(i / segs, 1.45);
+      const t1 = Math.pow((i + 0.86) / segs, 1.45);
+      const x0 = vpX + (ray.end[0] - vpX) * t0;
+      const y0 = vpY + (ray.end[1] - vpY) * t0;
+      const x1 = vpX + (ray.end[0] - vpX) * t1;
+      const y1 = vpY + (ray.end[1] - vpY) * t1;
+      drawInkStroke(
         ctx,
         [
-          [bx - 5 * s, by - 4 * s],
-          [bx + 6 * s, by - 3 * s],
-          [bx + 4 * s, by + 6 * s],
-          [bx - 6 * s, by + 5 * s],
+          [x0, y0],
+          [(x0 + x1) * 0.5 + rng.range(-2, 2) * t1, (y0 + y1) * 0.5],
+          [x1, y1],
         ],
         rng,
-        THEME_COLORS.ink,
-        0.7 * s
+        {
+          baseWidth: Math.max(0.95, ray.width * (0.35 + 0.65 * t1)),
+          taperScale: 1.2,
+          wobbleScale: 0.4,
+          breakChance: 0.12,
+        }
       );
     }
   }
 
-  // Crumbled overpass support pier at x = 0.76W
-  const pierPoly: Point2D[] = [
-    [0.745 * W, horizonY + 30 * s],
-    [0.785 * W, horizonY + 34 * s],
-    [0.792 * W, horizonY + 138 * s],
-    [0.738 * W, horizonY + 132 * s],
-  ];
-  fillRoughenedPolygon(ctx, pierPoly, rng, THEME_COLORS.paper, 1.4 * s);
-  hatchPolygonVerticalOrAngled(ctx, pierPoly, rng, {
-    angleRad: Math.PI * 0.5,
-    spacing: 4.5 * s,
-    baseWidth: 1.8 * s,
-  });
-  outlinePolygonWithInk(ctx, pierPoly, rng, {
-    baseWidth: 2.4 * s,
-    color: THEME_COLORS.ink,
-    doubleChance: 0.3,
-  });
-
-  recorder.captureStage(canvas, 0.08, 0.11, 'top-down');
-
-  // ===========================================================================
-  // 4. ONE-POINT PERSPECTIVE COLLAPSED AVENUE, CRACKED ASPHALT, BROKEN LANE
-  //    DASHES, SAGGING POWER LINES & FALLEN POLES
-  // ===========================================================================
-  // Horizon ridge line
-  drawInkStroke(
-    ctx,
-    [
-      [0.14 * W, horizonY],
-      [vpX, vpY],
-      [W, horizonY + 4 * s],
-    ],
-    rng,
-    { baseWidth: 2.2 * s, color: THEME_COLORS.ink, breakChance: 0.14, doubleChance: 0.3 }
-  );
-
-  // Perspective road curb lines radiating from vanishing point (vpX, vpY)
-  const roadLeftBotX = 0.22 * W;
-  const roadRightBotX = 0.95 * W;
-  const sidewalkLeftBotX = 0.08 * W;
-
-  drawInkStroke(
-    ctx,
-    [
-      [vpX - 18 * s, vpY + 4 * s],
-      [roadLeftBotX, H],
-    ],
-    rng,
-    { baseWidth: 2.8 * s, color: THEME_COLORS.ink, wobbleScale: 0.85, doubleChance: 0.4, breakChance: 0.08 }
-  );
-  drawInkStroke(
-    ctx,
-    [
-      [vpX - 28 * s, vpY + 6 * s],
-      [sidewalkLeftBotX, H],
-    ],
-    rng,
-    { baseWidth: 2.0 * s, color: THEME_COLORS.ink, wobbleScale: 0.85, breakChance: 0.12 }
-  );
-  drawInkStroke(
-    ctx,
-    [
-      [vpX + 18 * s, vpY + 4 * s],
-      [roadRightBotX, H],
-    ],
-    rng,
-    { baseWidth: 2.8 * s, color: THEME_COLORS.ink, wobbleScale: 0.85, doubleChance: 0.4, breakChance: 0.08 }
-  );
-
-  // Broken dashed center lane markings in one-point perspective
-  const laneBotX = 0.58 * W;
-  const dashCount = 11;
-  for (let d = 1; d <= dashCount; d++) {
-    const t0 = Math.pow((d - 0.35) / dashCount, 1.85);
-    const t1 = Math.pow((d + 0.22) / dashCount, 1.85);
-    // Tectonic crack lateral displacement on broken lane dashes
-    const faultShift = (d % 3 === 0 ? -9 : d % 2 === 0 ? 6 : -3) * s * t0;
-    const x0 = vpX + (laneBotX - vpX) * t0 + faultShift;
+  // Foreshortened perspective dashed lane markings (center double-dash + left/right lane dashes)
+  const totalDashes = 9;
+  for (let d = 1; d <= totalDashes; d++) {
+    const t0 = Math.pow((d - 0.35) / totalDashes, 1.65);
+    const t1 = Math.pow((d + 0.18) / totalDashes, 1.65);
     const y0 = vpY + (H - vpY) * t0;
-    const x1 = vpX + (laneBotX - vpX) * t1 + faultShift * 1.15;
     const y1 = vpY + (H - vpY) * t1;
-    const dashW = (1.2 + t0 * 5.2) * s;
+    const buckleX = (rng.noise1D(d * 3.7) - 0.5) * 8 * t1;
 
-    // Double broken lane dashes
-    drawInkStroke(
-      ctx,
-      [
-        [x0 - dashW * 0.9, y0],
-        [x1 - dashW * 0.9, y1],
-      ],
-      rng,
-      {
-        baseWidth: Math.max(1.1 * s, dashW * 0.65),
-        color: THEME_COLORS.ink,
-        wobbleScale: 0.7,
-        breakChance: 0.15,
-        doubleChance: 0.2,
-      }
-    );
-    drawInkStroke(
-      ctx,
-      [
-        [x0 + dashW * 0.9, y0],
-        [x1 + dashW * 0.9, y1],
-      ],
-      rng,
-      {
-        baseWidth: Math.max(1.1 * s, dashW * 0.65),
-        color: THEME_COLORS.ink,
-        wobbleScale: 0.7,
-        breakChance: 0.15,
-        doubleChance: 0.2,
-      }
-    );
-  }
+    // Center double-dashed line receding toward (vpX, vpY)
+    const cx0 = vpX + (W * 0.525 - vpX) * t0 + buckleX;
+    const cx1 = vpX + (W * 0.525 - vpX) * t1 + buckleX;
+    const sep = 1.2 + 4.5 * t1;
+    const lw = Math.max(1.0, 2.4 * t1);
 
-  // Deep jagged asphalt cracks & sinkhole fissures crossing the street
-  const asphaltCracks: Point2D[][] = [
-    [
-      [0.36 * W, horizonY + 52 * s],
-      [0.48 * W, horizonY + 64 * s],
-      [0.57 * W, horizonY + 58 * s],
-      [0.69 * W, horizonY + 74 * s],
-    ],
-    [
-      [0.29 * W, horizonY + 128 * s],
-      [0.44 * W, horizonY + 146 * s],
-      [0.55 * W, horizonY + 134 * s],
-      [0.66 * W, horizonY + 162 * s],
-      [0.82 * W, horizonY + 154 * s],
-    ],
-    [
-      [0.32 * W, horizonY + 235 * s],
-      [0.49 * W, horizonY + 258 * s],
-      [0.61 * W, horizonY + 242 * s],
-      [0.77 * W, horizonY + 278 * s],
-      [0.91 * W, horizonY + 266 * s],
-    ],
-    [
-      [0.41 * W, horizonY + 340 * s],
-      [0.58 * W, horizonY + 368 * s],
-      [0.72 * W, horizonY + 352 * s],
-      [0.88 * W, horizonY + 392 * s],
-    ],
-  ];
+    for (const side of [-1, 1]) {
+      drawInkStroke(
+        ctx,
+        [
+          [cx0 + side * sep * 0.85, y0],
+          [cx1 + side * sep, y1],
+        ],
+        rng,
+        { baseWidth: lw, taperScale: 1.1, wobbleScale: 0.3 }
+      );
+    }
 
-  for (const crack of asphaltCracks) {
-    drawInkStroke(ctx, crack, rng, {
-      baseWidth: 2.8 * s,
-      color: THEME_COLORS.ink,
-      wobbleScale: 1.25,
-      doubleChance: 0.45,
-      dryBrush: true,
-    });
-    // Short vertical depth ticks along the crack lip so the broken slab has thickness
-    for (let i = 0; i < crack.length - 1; i++) {
-      const p0 = crack[i];
-      const p1 = crack[i + 1];
-      for (let k = 1; k <= 4; k++) {
-        const u = k / 5;
-        const tx = p0[0] + (p1[0] - p0[0]) * u;
-        const ty = p0[1] + (p1[1] - p0[1]) * u;
+    // Secondary lane dashes on left and right lanes
+    if (d % 2 === 1) {
+      for (const laneEndX of [W * 0.38, W * 0.67]) {
+        const lx0 = vpX + (laneEndX - vpX) * t0 + buckleX * 0.6;
+        const lx1 = vpX + (laneEndX - vpX) * t1 + buckleX * 0.6;
         drawInkStroke(
           ctx,
           [
-            [tx, ty],
-            [tx + rng.range(-2, 2) * s, ty + rng.range(6, 14) * s],
+            [lx0, y0],
+            [lx1, y1],
           ],
           rng,
-          { baseWidth: 1.4 * s, color: THEME_COLORS.ink, doubleChance: 0 }
+          { baseWidth: Math.max(0.95, 2.0 * t1), taperScale: 1.15, wobbleScale: 0.3 }
         );
       }
     }
   }
 
-  // Scattered street rubble, broken concrete chunks & stipple gravel along the road
-  for (let c = 0; c < 28; c++) {
-    const depth = structuralRng.range(0.08, 0.94);
-    const ry = horizonY + 24 * s + Math.pow(depth, 1.4) * (H - horizonY - 40 * s);
-    const rx = structuralRng.range(0.32 * W, 0.92 * W);
-    const scale = (0.5 + depth * 0.9) * s;
-    const rw = structuralRng.range(6, 16) * scale;
-    const rh = rw * structuralRng.range(0.4, 0.65);
+  // Subtle perspective asphalt fissures & small rubble clusters (no spiky ticks!)
+  const fissureDepths = [0.18, 0.34, 0.54, 0.76, 0.92];
+  for (let f = 0; f < fissureDepths.length; f++) {
+    const persp = fissureDepths[f];
+    const baseY = vpY + (H - vpY) * persp;
+    const leftCurbX = vpX + (W * 0.25 - vpX) * persp;
+    const rightCurbX = vpX + (W * 0.81 - vpX) * persp;
+    const spanX = rightCurbX - leftCurbX;
 
-    const chunkPoly: Point2D[] = [
-      [rx - rw, ry],
-      [rx - rw * 0.4, ry - rh],
-      [rx + rw * 0.7, ry - rh * 0.7],
-      [rx + rw, ry + rh * 0.2],
-      [rx, ry + rh * 0.5],
-    ];
-    fillRoughenedPolygon(ctx, chunkPoly, rng, THEME_COLORS.paper, 0.8 * scale);
-    outlinePolygonWithInk(ctx, chunkPoly, rng, {
-      baseWidth: Math.max(1.1 * s, 1.6 * scale),
-      color: THEME_COLORS.ink,
-      doubleChance: 0.15,
+    const startX = leftCurbX + spanX * rng.range(0.08, 0.28);
+    const endX = leftCurbX + spanX * rng.range(0.58, 0.88);
+    const steps = 6;
+    const crackPts: Point2D[] = [];
+    for (let s = 0; s <= steps; s++) {
+      const u = s / steps;
+      const px = startX + (endX - startX) * u;
+      const py = baseY + Math.sin(u * Math.PI * 2.0 + f) * (4.5 * persp) + rng.range(-2, 2) * persp;
+      crackPts.push([px, py]);
+    }
+    drawInkStroke(ctx, crackPts, rng, {
+      baseWidth: Math.max(0.95, 1.65 * persp),
+      taperScale: 1.35,
+      wobbleScale: 0.45,
+      breakChance: 0.15,
     });
-    // Cast shadow line under rubble chunk
+
+    // Forked hairline sub-crack
+    const midPt = crackPts[Math.floor(steps * 0.5)];
     drawInkStroke(
       ctx,
       [
-        [rx - rw * 0.8, ry + rh * 0.45],
-        [rx + rw * 1.1, ry + rh * 0.45],
+        midPt,
+        [midPt[0] + 18 * persp, midPt[1] + 7 * persp],
+        [midPt[0] + 34 * persp, midPt[1] + 4 * persp],
       ],
       rng,
-      { baseWidth: Math.max(1.4 * s, 2.2 * scale), color: THEME_COLORS.ink, doubleChance: 0 }
+      { baseWidth: Math.max(0.85, 1.15 * persp), taperScale: 1.4, wobbleScale: 0.4 }
     );
-    for (let d = 0; d < 4; d++) {
-      drawInkDot(
-        ctx,
-        rx + structuralRng.range(-22, 22) * scale,
-        ry + structuralRng.range(-6, 8) * scale,
-        rng.range(0.9, 2.2) * scale,
-        rng,
-        THEME_COLORS.ink
-      );
+
+    // Small angular rubble stone & gravel stipple near the fissure
+    for (let r = 0; r < 2; r++) {
+      const rx = leftCurbX + spanX * rng.range(0.15, 0.85);
+      const ry = baseY + rng.range(-8, 12) * persp;
+      const rw = (3.5 + rng.range(0, 4.5)) * persp;
+      const rh = rw * 0.55;
+      const stonePoly: Point2D[] = [
+        [rx - rw, ry],
+        [rx - rw * 0.2, ry - rh],
+        [rx + rw * 0.8, ry - rh * 0.5],
+        [rx + rw, ry + rh * 0.2],
+        [rx, ry + rh * 0.4],
+      ];
+      fillRoughenedPolygon(ctx, stonePoly, rng, THEME_COLORS.paperPure, 0.4);
+      outlinePolygonWithInk(ctx, stonePoly, rng, {
+        baseWidth: Math.max(0.9, 1.3 * persp),
+        wobbleScale: 0.35,
+        doubleChance: 0,
+      });
+      for (let d = 0; d < 3; d++) {
+        drawInkDot(
+          ctx,
+          rx + rng.range(-12, 14) * persp,
+          ry + rng.range(-3, 5) * persp,
+          Math.max(0.75, 1.3 * persp),
+          rng,
+          THEME_COLORS.ink
+        );
+      }
     }
   }
 
-  // Tilted roadside hazard sign with sparse red diamond accent on right curb
-  const signBase: Point2D = [0.785 * W, horizonY + 265 * s];
-  const signTop: Point2D = [0.768 * W, horizonY + 212 * s];
-  drawInkStroke(ctx, [signBase, signTop], rng, {
-    baseWidth: 2.2 * s,
-    color: THEME_COLORS.ink,
-    doubleChance: 0,
-  });
-  const diamondPoly: Point2D[] = [
-    [signTop[0], signTop[1] - 12 * s],
-    [signTop[0] + 11 * s, signTop[1]],
-    [signTop[0], signTop[1] + 12 * s],
-    [signTop[0] - 11 * s, signTop[1]],
+  // Standing leaning utility poles receding along the avenue + sagging catenary power lines
+  const poles: Array<{ base: Point2D; top: Point2D; armW: number; width: number }> = [
+    // Near-left leaning pole (just right of Eva's lower jaw)
+    {
+      base: [W * 0.365, H * 0.675],
+      top: [W * 0.392, H * 0.435],
+      armW: 22,
+      width: 2.3,
+    },
+    // Mid-left pole
+    {
+      base: [W * 0.435, H * 0.585],
+      top: [W * 0.448, H * 0.465],
+      armW: 14,
+      width: 1.5,
+    },
+    // Near-right leaning pole
+    {
+      base: [W * 0.815, H * 0.775],
+      top: [W * 0.775, H * 0.425],
+      armW: 26,
+      width: 2.5,
+    },
+    // Mid-right pole
+    {
+      base: [W * 0.642, H * 0.605],
+      top: [W * 0.628, H * 0.455],
+      armW: 15,
+      width: 1.6,
+    },
   ];
-  fillRoughenedPolygon(ctx, diamondPoly, rng, THEME_COLORS.red, 0.5 * s);
-  outlinePolygonWithInk(ctx, diamondPoly, rng, {
-    baseWidth: 1.8 * s,
-    color: THEME_COLORS.ink,
-    doubleChance: 0,
-  });
 
-  // ---------------------------------------------------------------------------
-  // UTILITY POLES (LEANING + FALLEN ACROSS THE ROAD) & SAGGING POWER LINES
-  // ---------------------------------------------------------------------------
-  const drawUtilityPole = (
-    base: Point2D,
-    top: Point2D,
-    poleWidth: number,
-    crossArmSpan: number
-  ): { leftArm: Point2D; rightArm: Point2D; lowerLeftArm: Point2D; lowerRightArm: Point2D } => {
-    drawInkStroke(ctx, [base, top], rng, {
-      baseWidth: poleWidth,
-      color: THEME_COLORS.ink,
-      wobbleScale: 0.65,
-      doubleChance: 0.35,
-      dryBrush: true,
-    });
-
-    const dx = top[0] - base[0];
-    const dy = top[1] - base[1];
-    const len = Math.hypot(dx, dy) || 1;
-    const nx = -dy / len;
-    const ny = dx / len;
-
-    // Upper cross-arm
-    const arm1Center: Point2D = [base[0] + dx * 0.92, base[1] + dy * 0.92];
-    const leftArm: Point2D = [
-      arm1Center[0] - nx * crossArmSpan,
-      arm1Center[1] - ny * crossArmSpan,
-    ];
-    const rightArm: Point2D = [
-      arm1Center[0] + nx * crossArmSpan,
-      arm1Center[1] + ny * crossArmSpan,
-    ];
-    drawInkStroke(ctx, [leftArm, rightArm], rng, {
-      baseWidth: poleWidth * 0.62,
-      color: THEME_COLORS.ink,
-      doubleChance: 0.2,
-    });
-
-    // Lower cross-arm
-    const arm2Center: Point2D = [base[0] + dx * 0.81, base[1] + dy * 0.81];
-    const lowerLeftArm: Point2D = [
-      arm2Center[0] - nx * (crossArmSpan * 0.82),
-      arm2Center[1] - ny * (crossArmSpan * 0.82),
-    ];
-    const lowerRightArm: Point2D = [
-      arm2Center[0] + nx * (crossArmSpan * 0.82),
-      arm2Center[1] + ny * (crossArmSpan * 0.82),
-    ];
-    drawInkStroke(ctx, [lowerLeftArm, lowerRightArm], rng, {
-      baseWidth: poleWidth * 0.55,
-      color: THEME_COLORS.ink,
+  for (const p of poles) {
+    drawInkStroke(ctx, [p.base, p.top], rng, {
+      baseWidth: p.width,
+      wobbleScale: 0.4,
       doubleChance: 0.15,
     });
+    const armY = p.top[1] + (p.base[1] - p.top[1]) * 0.1;
+    drawInkStroke(
+      ctx,
+      [
+        [p.top[0] - p.armW * 0.5, armY - 2],
+        [p.top[0] + p.armW * 0.5, armY + 3],
+      ],
+      rng,
+      { baseWidth: Math.max(1.1, p.width * 0.7), wobbleScale: 0.35 }
+    );
+  }
 
-    // Insulator pins
-    for (const pt of [leftArm, rightArm, lowerLeftArm, lowerRightArm]) {
-      drawInkDot(ctx, pt[0], pt[1] - 2.5 * s, poleWidth * 0.55, rng, THEME_COLORS.ink);
-    }
-
-    return { leftArm, rightArm, lowerLeftArm, lowerRightArm };
-  };
-
-  // 1. Far-right leaning pole down the avenue
-  const poleFarRight = drawUtilityPole(
-    [0.655 * W, horizonY + 96 * s],
-    [0.632 * W, horizonY - 68 * s],
-    2.8 * s,
-    20 * s
-  );
-
-  // 2. Near-right heavily leaning utility pole
-  const poleNearRight = drawUtilityPole(
-    [0.865 * W, horizonY + 340 * s],
-    [0.795 * W, horizonY - 95 * s],
-    4.6 * s,
-    34 * s
-  );
-
-  // 3. Mid-left leaning utility pole
-  const poleMidLeft = drawUtilityPole(
-    [0.375 * W, horizonY + 148 * s],
-    [0.408 * W, horizonY - 62 * s],
-    3.0 * s,
-    22 * s
-  );
-
-  // 4. FALLEN UTILITY POLE lying diagonally across the cracked road
-  const fallenBase: Point2D = [0.335 * W, horizonY + 298 * s];
-  const fallenTop: Point2D = [0.695 * W, horizonY + 252 * s];
-  // Snapped stump on left curb
+  // Fallen utility pole lying diagonally across the lower-left/mid street
+  const fallenPoleStart: Point2D = [W * 0.35, H * 0.74];
+  const fallenPoleEnd: Point2D = [W * 0.485, H * 0.785];
   drawInkStroke(
     ctx,
     [
-      [0.325 * W, horizonY + 318 * s],
-      [0.332 * W, horizonY + 286 * s],
+      fallenPoleStart,
+      [(fallenPoleStart[0] + fallenPoleEnd[0]) * 0.5, (fallenPoleStart[1] + fallenPoleEnd[1]) * 0.5 - 2],
+      fallenPoleEnd,
     ],
     rng,
-    { baseWidth: 4.4 * s, color: THEME_COLORS.ink, doubleChance: 0.3, dryBrush: true }
+    { baseWidth: 2.2, wobbleScale: 0.4, doubleChance: 0.15 }
   );
-  const fallenPoleArms = drawUtilityPole(fallenBase, fallenTop, 4.2 * s, 26 * s);
+  // Broken crossarm on the fallen pole
+  drawInkStroke(
+    ctx,
+    [
+      [fallenPoleEnd[0] - 4, fallenPoleEnd[1] - 9],
+      [fallenPoleEnd[0] + 6, fallenPoleEnd[1] + 8],
+    ],
+    rng,
+    { baseWidth: 1.5, wobbleScale: 0.35 }
+  );
 
-  // Sagging catenary power lines crossing the road and running down the avenue
-  const cablePairs: Array<{ start: Point2D; end: Point2D; sag: number; w: number }> = [
-    // Along right side of avenue
-    { start: poleNearRight.leftArm, end: poleFarRight.leftArm, sag: 42 * s, w: 1.8 * s },
-    { start: poleNearRight.rightArm, end: poleFarRight.rightArm, sag: 48 * s, w: 1.7 * s },
-    { start: poleNearRight.lowerLeftArm, end: poleFarRight.lowerLeftArm, sag: 38 * s, w: 1.5 * s },
-    // Crossing high over the collapsed avenue from right poles to left pole
-    { start: poleNearRight.leftArm, end: poleMidLeft.rightArm, sag: 64 * s, w: 1.9 * s },
-    { start: poleFarRight.leftArm, end: poleMidLeft.leftArm, sag: 44 * s, w: 1.5 * s },
-    // Sagging down to the fallen pole lying across the road
-    { start: poleMidLeft.lowerRightArm, end: fallenPoleArms.leftArm, sag: 52 * s, w: 1.7 * s },
-    { start: poleNearRight.lowerLeftArm, end: fallenPoleArms.rightArm, sag: 58 * s, w: 1.8 * s },
-    // Trailing off top-right edge
-    { start: [W, horizonY - 120 * s], end: poleNearRight.rightArm, sag: 36 * s, w: 2.0 * s },
+  // Sagging catenary power lines along the curbs and crossing the far avenue
+  const powerCables = [
+    { start: poles[0].top, end: poles[1].top, sag: 16, thickness: 1.15 },
+    { start: poles[2].top, end: poles[3].top, sag: 18, thickness: 1.15 },
+    { start: poles[1].top, end: poles[3].top, sag: 22, thickness: 1.05 },
+    { start: poles[0].top, end: fallenPoleEnd, sag: 18, thickness: 1.1 },
   ];
-
-  for (const c of cablePairs) {
+  for (const c of powerCables) {
     drawCatenaryCable(ctx, {
       start: c.start,
       end: c.end,
       sag: c.sag,
-      baseWidth: c.w,
+      baseWidth: c.thickness,
       rng,
       structuralRng,
-      color: THEME_COLORS.ink,
-      tieTicks: true,
+      tieTicks: false,
     });
   }
 
-  // Ink spatter clusters around the ruptured towers and road fissures
-  drawInkSpatterCluster(ctx, W * 0.49, horizonY - 12 * s, W * 0.05, 10, rng);
-  drawInkSpatterCluster(ctx, W * 0.68, horizonY + 18 * s, W * 0.06, 12, rng);
+  // Sparse red accent #2: small tilted roadside hazard diamond sign near right curb
+  const signPostBase: Point2D = [W * 0.785, H * 0.735];
+  const signPostTop: Point2D = [W * 0.772, H * 0.688];
+  drawInkStroke(ctx, [signPostBase, signPostTop], rng, {
+    baseWidth: 1.5,
+    wobbleScale: 0.35,
+  });
+  const signDiamond: Point2D[] = [
+    [signPostTop[0], signPostTop[1] - 8],
+    [signPostTop[0] + 6, signPostTop[1] - 1],
+    [signPostTop[0], signPostTop[1] + 6],
+    [signPostTop[0] - 6, signPostTop[1] - 1],
+  ];
+  fillRoughenedPolygon(ctx, signDiamond, rng, THEME_COLORS.red, 0.4);
+  outlinePolygonWithInk(ctx, signDiamond, rng, {
+    baseWidth: 1.2,
+    wobbleScale: 0.25,
+    doubleChance: 0,
+  });
 
-  recorder.captureStage(canvas, 0.11, 0.14, 'top-down');
+  recorder.captureStage(canvas, 0.75, 1.0, 'bottom-up');
 }

@@ -134,7 +134,7 @@ const EVA_REVEAL_FRAG = /* glsl */ `
 
     if (uIsBackground > 0.5) {
       bool isRed = (tex.r - max(tex.g, tex.b)) > 0.18;
-      float isInk = step(0.45, 1.0 - tex.r) * edgeMask;
+      float isInk = step(0.28, 1.0 - tex.r) * edgeMask;
       vec3 col = isRed
         ? mix(uColorPaper, uColorRed, edgeMask)
         : mix(uColorPaper, uColorInk, isInk);
@@ -658,8 +658,8 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
           0
         );
       } else {
-        // Desktop: bust spans ~88% of stage height, anchored flush at left and bottom edges
-        const desktopStageWorldH = vHAtZero * 0.88;
+        // Desktop: bust spans ~84% of stage height so horn tip stays cleanly inside the top frame
+        const desktopStageWorldH = vHAtZero * 0.84;
         const desiredHWorld = desktopStageWorldH / EVA_PROPORTIONS.visibleHeads;
         const rigScale = desiredHWorld / EVA_CONFIG.headUnitWorld;
         const bottomWorldY = persp.position.y - vHAtZero * 0.5;
