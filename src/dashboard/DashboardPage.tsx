@@ -54,6 +54,31 @@ export const DashboardPage: React.FC = () => {
     };
   }, []);
 
+  // Lock document scrolling on dashboard so only the right rail panels can scroll, never the background
+  useEffect(() => {
+    const origHtmlOverflow = document.documentElement.style.overflow;
+    const origBodyOverflow = document.body.style.overflow;
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.documentElement.style.overflow = origHtmlOverflow;
+      document.body.style.overflow = origBodyOverflow;
+    };
+  }, []);
+
+  // Strictly prevent mouse wheel scrolling on the stage / canvas background
+  useEffect(() => {
+    const stageEl = document.getElementById('dashboard-stage-target');
+    if (!stageEl) return;
+    const blockWheel = (e: WheelEvent) => {
+      e.preventDefault();
+    };
+    stageEl.addEventListener('wheel', blockWheel, { passive: false });
+    return () => {
+      stageEl.removeEventListener('wheel', blockWheel);
+    };
+  }, []);
+
   const handleStageKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (
       e.key === 'ArrowUp' ||
@@ -71,7 +96,7 @@ export const DashboardPage: React.FC = () => {
       id="dashboard-page"
       data-route="dashboard"
       aria-label="Pilot Live Telemetry Dashboard"
-      className="relative w-full min-h-[100dvh] md:h-[100dvh] md:overflow-hidden select-none"
+      className="relative w-full h-[100dvh] overflow-hidden select-none"
     >
       <h1 className="sr-only">
         {PROFILE.fullName} — Live Telemetry &amp; Eva-01 Berserk Dashboard
@@ -84,7 +109,7 @@ export const DashboardPage: React.FC = () => {
         tabIndex={0}
         role="region"
         aria-label="Eva-01 Berserk target stage. Move pointer or press arrow keys to steer the red target dot."
-        style={{ touchAction: 'pan-y' }}
+        style={{ touchAction: 'none' }}
         onPointerMove={(e) => {
           updateStagePointerFromClient(e.clientX, e.clientY, e.buttons > 0);
         }}
@@ -113,9 +138,10 @@ export const DashboardPage: React.FC = () => {
               left: `${rightRail.x[0] * 100}%`,
               width: `${(rightRail.x[1] - rightRail.x[0]) * 100}%`,
               top: `${rightRail.y[0] * 100}%`,
+              height: `${(rightRail.y[1] - rightRail.y[0]) * 100}%`,
               maxHeight: `${(rightRail.y[1] - rightRail.y[0]) * 100}%`,
             }}
-            className="fixed z-20 flex flex-col gap-2 pointer-events-none overflow-y-auto"
+            className="fixed z-20 flex flex-col gap-2.5 pointer-events-auto overflow-y-auto overscroll-contain pr-1.5 pb-6 pt-0.5 select-auto"
           >
             {DASHBOARD_LAYOUT_CONFIG.rightRailSlots.map((slotId) => (
               <SlotRenderer key={slotId} slotId={slotId} />

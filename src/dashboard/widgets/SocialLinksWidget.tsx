@@ -55,7 +55,7 @@ export const SocialLinksWidget: React.FC = () => {
             rel="noopener noreferrer"
             data-testid={`social-link-${item.id}`}
             aria-label={`${item.name} link`}
-            className="group flex flex-col justify-between p-1.5 border border-[var(--ink)] bg-[var(--paper)] transition-all duration-150 hover:bg-[var(--ink)] hover:text-[var(--paper-pure)] hover:border-[var(--red)] cursor-pointer"
+            className="group flex flex-col justify-between p-2 min-h-[48px] border border-[var(--ink)] bg-[var(--paper)] transition-all duration-150 hover:bg-[var(--ink)] hover:text-[var(--paper-pure)] hover:border-[var(--red)] cursor-pointer"
           >
             <div className="flex items-center justify-between">
               <span className="text-[8px] font-bold tracking-[0.14em] text-[var(--ink)] group-hover:text-[var(--paper-pure)]">

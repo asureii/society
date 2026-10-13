@@ -151,3 +151,26 @@ body {
   filter: grayscale(100%) contrast(220%) brightness(105%);
   mix-blend-mode: multiply;
 }
+
+/* Custom Manga Scrollbar for Dashboard Panels */
+[data-widget-rail="right"] {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink) transparent;
+}
+
+[data-widget-rail="right"]::-webkit-scrollbar {
+  width: 5px;
+}
+
+[data-widget-rail="right"]::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+[data-widget-rail="right"]::-webkit-scrollbar-thumb {
+  background: var(--ink);
+}
+
+[data-widget-rail="right"]::-webkit-scrollbar-thumb:hover {
+  background: var(--red);
+}
+

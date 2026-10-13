@@ -62,7 +62,7 @@ export const WidgetFrame: React.FC<WidgetFrameProps> = ({
       data-slot-id={slotId}
       data-widget-id={widgetId}
       aria-label={`${kicker} ${title}`}
-      className="relative bg-[var(--paper-pure)] border-2 border-[var(--ink)] shadow-[3px_3px_0px_0px_var(--ink)] pointer-events-auto overflow-hidden flex flex-col"
+      className="relative bg-[var(--paper-pure)] border-2 border-[var(--ink)] shadow-[3px_3px_0px_0px_var(--ink)] pointer-events-auto overflow-hidden flex flex-col shrink-0"
     >
       {/* Baked static hand-inked wobbly SVG border (no live filters) */}
       <svg
@@ -103,7 +103,7 @@ export const WidgetFrame: React.FC<WidgetFrameProps> = ({
       </header>
 
       {/* Body */}
-      <div className="p-2.5 text-[var(--ink)] flex-1 flex flex-col justify-between min-h-0">
+      <div className="p-2.5 text-[var(--ink)] flex flex-col shrink-0">
         {children}
       </div>
     </section>
@@ -120,7 +120,7 @@ export const EmptySlotPlaceholder: React.FC<{ slotId: DashboardWidgetSlotId }> =
       data-slot-id={slotId}
       data-widget-id="empty-placeholder"
       aria-label={`Unassigned slot ${slotId}`}
-      className="relative bg-[var(--paper)] border border-dashed border-[var(--ink)] pointer-events-auto overflow-hidden p-2.5 flex flex-col justify-between min-h-[68px]"
+      className="relative bg-[var(--paper)] border border-dashed border-[var(--ink)] pointer-events-auto overflow-hidden p-2.5 flex flex-col justify-between min-h-[68px] shrink-0"
     >
       <svg
         viewBox="0 0 100 100"
