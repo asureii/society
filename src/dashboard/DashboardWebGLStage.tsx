@@ -110,7 +110,9 @@ const EVA_REVEAL_FRAG = /* glsl */ `
   void main() {
     vec4 tex = texture2D(uTex, vUv);
     float orderVal = texture2D(uOrderTex, vUv).r;
-    float edgeMask = 1.0 - smoothstep(uReveal - 0.04, uReveal + 0.015, orderVal);
+    float edgeMask = uReveal >= 0.99
+      ? 1.0
+      : (1.0 - smoothstep(uReveal - 0.05, uReveal + 0.01, orderVal * 0.94));
 
     if (uIsBackground > 0.5) {
       float isInk = step(0.45, 1.0 - tex.r) * edgeMask;

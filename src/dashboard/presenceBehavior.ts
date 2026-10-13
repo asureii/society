@@ -6,8 +6,8 @@
  * to continuous behavior parameters that ease smoothly over `0.8s` without snapping.
  */
 
-import { lerp } from '../lib/math';
-import type { DiscordStatusType } from '../store/useAppStore';
+import { lerp } from '../lib/math.ts';
+import type { DiscordStatusType } from '../store/useAppStore.ts';
 
 export type OrbRenderMode = 'solid-pulse' | 'solid-slow' | 'solid-dnd-bar' | 'hollow-ring';
 

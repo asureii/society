@@ -226,6 +226,108 @@ To override any procedural layer with custom scanned or digitally inked artwork,
 
 ---
 
+## `/dashboard` Route: Eva-01 Telemetry Cockpit & Modular Widget System
+
+### 1. Overview of the Two Routes (`/` and `/dashboard`)
+- **`/` (Pilot File Journey)**: The scroll-driven 7-chapter 2.5D manga portfolio (`Lenis` + `GSAP` single-clock choreography) preceded by the 9.2s *"Machinery is a projection of the mind"* intro sequence.
+- **`/dashboard` (Eva-01 Telemetry Cockpit)**: A lazy-loaded (`React.lazy`), single-viewport (`100dvh`) interactive stage on the same shared `@react-three/fiber` WebGL canvas.
+  - **Left Stage (`~55%` width)**: An original hand-inked **Eva-01 Berserk Silhouette** generated off the main thread in `src/dashboard/eva/evaWorker.ts` (`body`, `head`, `jaw`, `eye`, `pupil`, `glint`, `drips`, `background`), revealed stroke-by-stroke over `1.2s` via a per-pixel draw-order channel (`order <= uReveal`).
+  - **Right Stage (`~40%` width)**: The **Red Orb** (`#D4141C`) with black curved hatching, misregistration offset, target reticle ticks, and a hand-inked dashed **Sight Line** (`src/dashboard/shaders/sightLine.frag.glsl`) connecting Eva's eye to the orb.
+  - **Gaze Tracking & Input Physics (`src/dashboard/eva.config.ts`)**: Under-damped springs drive pupil slide (`<= 35%` eye radius), head translation (`<= 2.5%`), head rotation (`±6°`), scale (`±1.5%`), proximity-reactive jaw opening (`6°–25°` with attached jagged teeth), and 12fps quantized micro-twitch (`±0.4°` + `1–2px` jaw tremor when wide open). Pointer hover/drag and keyboard arrow keys move the orb while enforcing `orb.minFaceDistance` repulsion.
+  - **Presence-Driven Behavior (`src/dashboard/presenceBehavior.ts`)**: Live Lanyard Discord status (`online`, `idle`, `dnd`, `offline`, or `unreachable` fallback) smoothly eases over `0.8s` between behavior profiles—from alert tracking (`online`), to half-lidded droop (`idle`), to locked jaw tension with a black DND bar (`dnd`), to a bowed head, blacked-out eye, and hollow red ring (`offline`).
+  - **Shared Lanyard Socket & Deep-Link Isolation**: A module-level singleton WebSocket (`src/hooks/useDiscordPresence.ts`) is shared across `/` and `/dashboard` with zero duplicate sockets (`window.__LANYARD_SOCKET_COUNT__ === 1`). Deep-linking `/dashboard` skips the intro and never marks `sessionStorage.introSeen`, while navigating between `/` and `/dashboard` wipes via the 0.6s **Orb Iris** transition.
+
+---
+
+### 2. Portable Static Deployment (GitHub Pages, Netlify, Vercel)
+Because static hosting can target a user domain (`https://<username>.github.io/`), a project subpath (`https://<username>.github.io/<repo>/`), Netlify, or Vercel:
+1. **`VITE_BASE` Support**: Both Vite (`vite.config.ts`) and `BrowserRouter` (`src/main.tsx`) read `process.env.VITE_BASE` (default `/`).
+2. **Post-Build Route Shell (`scripts/postbuild-routes.mjs`)**: Runs automatically after `npm run build` to emit:
+   - `dist/dashboard/index.html` with route-specific `<title>`, `<meta name="description">`, and Open Graph tags (`/og-dashboard.svg`) so `/dashboard/` returns a real **HTTP 200** on every static host.
+   - `dist/404.html` using the `spa-github-pages` redirect technique paired with the restore script in `index.html`, so arbitrary deep links gracefully restore without server config.
+3. **Host Configs Included**:
+   - **GitHub Pages (`.github/workflows/deploy.yml`)**: Uses `actions/deploy-pages@v4`. For a user site (`<username>.github.io`), leave `VITE_BASE=/`. For a project site (`<username>.github.io/<repo>/`), set repository variable `VITE_BASE=/<repo>/`.
+   - **Netlify (`public/_redirects`)**: Ships `/dashboard /dashboard/index.html 200` and `/* /index.html 200`.
+   - **Vercel (`vercel.json`)**: Rewrites `/dashboard` and `/dashboard/` to `/dashboard/index.html` and fallback routes to `/index.html`.
+4. **Local GitHub Pages Emulator (`scripts/serve-like-ghpages.mjs`)**:
+   ```bash
+   npm run build
+   npm run preview:ghpages
+   ```
+   Mimics GitHub Pages locally on `http://127.0.0.1:4173`: serves static files from `dist/`, redirects `/dashboard` $\to$ `301 /dashboard/`, serves `dist/dashboard/index.html` with status `200`, and serves `dist/404.html` with status `404` for unknown paths.
+
+---
+
+### 3. How to Add a New Dashboard Widget in 5 Steps
+The widget rail (`rail-1`, `rail-2`, `rail-3`) and bottom dock (`dock-left`, `dock-right`) are driven by [`src/dashboard/widgets/registry.ts`](src/dashboard/widgets/registry.ts) and [`src/dashboard/layout.config.ts`](src/dashboard/layout.config.ts). Empty or disabled slots automatically render the `"UNASSIGNED // AWAITING SIGNAL"` placeholder frame.
+
+1. **Create your widget component** in `src/dashboard/widgets/MyCustomWidget.tsx`:
+   ```tsx
+   import React from 'react';
+   import { useSharedSecondTicker } from './useSharedTicker';
+
+   export const MyCustomWidget: React.FC = () => {
+     const nowMs = useSharedSecondTicker();
+     return (
+       <div className="flex flex-col gap-1.5 font-mono text-[11px] text-ink">
+         <div className="flex items-center justify-between border-b border-ink/20 pb-1">
+           <span className="font-bold tracking-wider">SIGNAL LOCK</span>
+           <span className="text-red font-bold">NOMINAL</span>
+         </div>
+         <div className="text-[10px] tracking-widest uppercase">
+           FRAME TICK // {Math.floor(nowMs / 1000)}S
+         </div>
+       </div>
+     );
+   };
+   ```
+2. **Import and register the widget** in [`src/dashboard/widgets/registry.ts`](src/dashboard/widgets/registry.ts) using `defineWidget`:
+   ```tsx
+   import { MyCustomWidget } from './MyCustomWidget';
+
+   // Inside WIDGETS array:
+   defineWidget({
+     id: 'my-custom-widget',
+     title: 'CUSTOM TELEMETRY',
+     kicker: 'SYS.06 // PROBE',
+     slot: 'dock-left',
+     size: 'sm',
+     enabled: true,
+     requires: ['none'],
+     component: MyCustomWidget,
+   }),
+   ```
+3. **Assign its desktop slot** in [`src/dashboard/layout.config.ts`](src/dashboard/layout.config.ts):
+   ```ts
+   desktopSlots: {
+     'rail-1': 'discord-presence',
+     'rail-2': 'spotify',
+     'rail-3': 'activity',
+     'dock-left': 'my-custom-widget',
+     'dock-right': 'now-building',
+   },
+   ```
+4. **Add its ID to `mobileOrder`** in [`src/dashboard/layout.config.ts`](src/dashboard/layout.config.ts) if it should appear in the stacked `<768px` drawer.
+5. **Run verification**: Execute `npm run check:palette && npm run check:dashboard` to verify palette compliance and zero stage overlap.
+
+*(Note: Three ready-to-enable stub widgets—`ClockWidget.tsx`, `NowBuildingWidget.tsx`, and `GithubActivityWidget.tsx`—are already wired in `src/dashboard/widgets/` and can be activated simply by flipping `enabled: true` in `registry.ts`.)*
+
+---
+
+### 4. Custom Hand-Drawn Eva-01 Layer Overrides (`public/eva/*.png`)
+Every procedural Eva-01 layer generated by `src/dashboard/eva/evaGenerator.ts` supports drop-in PNG overrides with zero shader changes:
+1. Create `/public/eva/` and drop any of the following transparent PNGs (matching the strict `#0A0A0A` ink / `#FAFAF8` paper palette):
+   - `public/eva/background.png` (`1024×1024`) — Radial speed lines & ink spatter behind the head
+   - `public/eva/body.png` (`1024×1024`) — Neck, chest V-seam, and left/right shoulder pylons with chevron grooves
+   - `public/eva/head.png` (`1024×1024`) — Forward-leaning helmet, horn, brow & cheek armor seams, upper jagged teeth
+   - `public/eva/jaw.png` (`1024×1024`) — Hinged lower jaw plate, chin spur, and lower row of jagged teeth
+   - `public/eva/eye.png` (`256×256`) — White negative-space eye aperture
+   - `public/eva/pupil.png` (`256×256`) — Sliding ink pupil disc
+   - `public/eva/drips.png` (`512×512`) — Looping vertical ink drips off the jaw and horn
+2. Set `enablePngOverrides: true` in [`src/dashboard/eva.config.ts`](src/dashboard/eva.config.ts) (or `window.__ENABLE_EVA_PNG_OVERRIDES__ = true` in the console). Any layer with a matching PNG in `public/eva/<layer>.png` will load that file while remaining layers fall back to the procedural worker art.
+
+---
+
 ## Getting Started
 
 ```bash
@@ -238,14 +340,21 @@ npm run dev
 # Verify strict palette compliance
 npm run check:palette
 
+# Run /dashboard 6-suite verification & generate 7 visual state PNGs
+npm run check:dashboard
+
 # Run cinematic intro verification suite & generate 10 key-moment screenshots
 npm run check:intro
 
 # Run single-clock transition & S7 finale verification suite
 npm run check:transitions
 
-# Run linter & production build
+# Run linter & production build (including /dashboard/index.html & 404.html)
 npm run lint
 npm run build
+
+# Test portable static build on the local GitHub Pages emulator
+npm run preview:ghpages
 ```
+
 

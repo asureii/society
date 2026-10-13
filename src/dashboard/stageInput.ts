@@ -1,5 +1,5 @@
-import { clamp } from '../lib/math';
-import { STAGE_DASHBOARD_CONFIG } from './stage.config';
+import { clamp } from '../lib/math.ts';
+import { STAGE_DASHBOARD_CONFIG } from './stage.config.ts';
 
 export interface StageInputState {
   pointerActive: boolean;

@@ -8,6 +8,7 @@ import { drawEvaDripsLayer } from './drips';
 import { drawEvaEyeLayer, drawEvaPupilLayer } from './eye';
 import { createEvaDrawOrderRecorder, createSurface, type AnyCanvas } from './evaSurface';
 import type { EvaWorkerRequest, EvaWorkerResponse } from './evaWorker';
+import EvaWorkerConstructor from './evaWorker?worker';
 import { drawEvaHeadLayer } from './head';
 import { drawEvaJawLayer } from './jaw';
 
@@ -44,6 +45,7 @@ export interface EvaGpuTextureBundle {
   dripsTex: THREE.Texture;
   orbTex: THREE.Texture;
   memoryBytes: number;
+  gpuUploaded: boolean;
 }
 
 let cachedCpuBitmaps: EvaCpuBitmapCache | null = null;
@@ -182,13 +184,11 @@ export function ensureEvaArtBitmaps(
     };
 
     try {
-      const worker = new Worker(new URL('./evaWorker.ts', import.meta.url), {
-        type: 'module',
-      });
+      const worker = new EvaWorkerConstructor();
       const timeoutId = window.setTimeout(() => {
         worker.terminate();
         fallback();
-      }, 2200);
+      }, 600);
 
       worker.onmessage = (ev: MessageEvent<EvaWorkerResponse>) => {
         if (settled) return;
@@ -283,9 +283,10 @@ export function getOrUploadEvaGpuBundle(
       dripsTex: makeThreeTexture(cachedCpuBitmaps.dripsBitmap, false),
       orbTex: makeThreeTexture(cachedCpuBitmaps.orbBitmap, false),
       memoryBytes: cachedCpuBitmaps.memoryBytes,
+      gpuUploaded: false,
     };
   }
-  if (renderer) {
+  if (renderer && !activeGpuBundle.gpuUploaded) {
     renderer.initTexture(activeGpuBundle.backgroundTex);
     renderer.initTexture(activeGpuBundle.backgroundOrderTex);
     renderer.initTexture(activeGpuBundle.bodyTex);
@@ -298,6 +299,7 @@ export function getOrUploadEvaGpuBundle(
     renderer.initTexture(activeGpuBundle.pupilTex);
     renderer.initTexture(activeGpuBundle.dripsTex);
     renderer.initTexture(activeGpuBundle.orbTex);
+    activeGpuBundle.gpuUploaded = true;
   }
   return activeGpuBundle;
 }
