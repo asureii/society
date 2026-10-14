@@ -30,14 +30,14 @@ export const SocialLinksWidget: React.FC = () => {
       name: 'TIKTOK',
       code: 'TT-03',
       href: PROFILE.links.tiktok || 'https://www.tiktok.com/@sa7ity',
-      handle: '@sa7ity',
+      handle: '@asukavibrator',
     },
     {
       id: 'instagram',
       name: 'INSTAGRAM',
       code: 'IG-04',
-      href: PROFILE.links.instagram || 'https://www.instagram.com/sa7ity',
-      handle: '@sa7ity',
+      href: PROFILE.links.instagram || 'https://www.instagram.com/erickchrisf',
+      handle: '@erickchrisf',
     },
   ];
 

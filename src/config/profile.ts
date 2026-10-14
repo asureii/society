@@ -264,8 +264,8 @@ export const PROFILE: ProfileConfig = {
     email: 'mailto:TODO_EMAIL@example.com',
     linkedin: 'https://linkedin.com/in/TODO_LINKEDIN',
     spotify: 'https://open.spotify.com/user/sa7ity',
-    tiktok: 'https://www.tiktok.com/@sa7ity',
-    instagram: 'https://www.instagram.com/sa7ity',
+    tiktok: 'https://www.tiktok.com/@asukavibrator',
+    instagram: 'https://www.instagram.com/erickchrisf',
   },
   audio: {
     ambientUrl: undefined,

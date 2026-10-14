@@ -79,6 +79,35 @@ export const DashboardPage: React.FC = () => {
     };
   }, []);
 
+  // Global window pointer tracking so the red orb tracks cursor across entire viewport
+  useEffect(() => {
+    const onPointerMove = (e: PointerEvent) => {
+      updateStagePointerFromClient(e.clientX, e.clientY, e.buttons > 0);
+    };
+    const onPointerDown = (e: PointerEvent) => {
+      updateStagePointerFromClient(e.clientX, e.clientY, true);
+    };
+    const onPointerUp = () => {
+      stageInputState.pointerDown = false;
+    };
+    const onWindowLeave = () => {
+      clearStagePointer();
+    };
+
+    window.addEventListener('pointermove', onPointerMove, { passive: true });
+    window.addEventListener('pointerdown', onPointerDown, { passive: true });
+    window.addEventListener('pointerup', onPointerUp, { passive: true });
+    document.addEventListener('mouseleave', onWindowLeave);
+
+    return () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointerup', onPointerUp);
+      document.removeEventListener('mouseleave', onWindowLeave);
+      clearStagePointer();
+    };
+  }, []);
+
   const handleStageKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (
       e.key === 'ArrowUp' ||
@@ -118,9 +147,6 @@ export const DashboardPage: React.FC = () => {
         }}
         onPointerUp={() => {
           stageInputState.pointerDown = false;
-        }}
-        onPointerLeave={() => {
-          clearStagePointer();
         }}
         onKeyDown={handleStageKeyDown}
         className="relative w-full h-[58dvh] md:fixed md:inset-0 md:h-full z-10 cursor-crosshair focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-[var(--red)]"

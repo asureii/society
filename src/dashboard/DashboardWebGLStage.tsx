@@ -597,15 +597,18 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
       activeOrbRegion.y[1]
     );
 
-    let desiredU = lerp(lissU, regionCenterU, profile.orbParkAtCenter);
-    let desiredV = lerp(lissV, regionCenterV, profile.orbParkAtCenter);
+    let desiredU: number;
+    let desiredV: number;
 
-    if (stageInputState.pointerActive && profile.pointerAttraction > 0.05) {
-      desiredU = lerp(desiredU, stageInputState.pointerUv[0], profile.pointerAttraction);
-      desiredV = lerp(desiredV, stageInputState.pointerUv[1], profile.pointerAttraction);
-    } else if (stageInputState.keyboardActive && profile.pointerAttraction > 0.05) {
+    if (stageInputState.pointerActive) {
+      desiredU = stageInputState.pointerUv[0];
+      desiredV = stageInputState.pointerUv[1];
+    } else if (stageInputState.keyboardActive) {
       desiredU = stageInputState.keyboardUv[0];
       desiredV = stageInputState.keyboardUv[1];
+    } else {
+      desiredU = lerp(lissU, regionCenterU, profile.orbParkAtCenter);
+      desiredV = lerp(lissV, regionCenterV, profile.orbParkAtCenter);
     }
 
     const fdx = desiredU - faceCenter[0];
@@ -619,12 +622,12 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
     }
 
     const [prevOrbU, prevOrbV] = store.dashboardOrbUv;
-    const followSpeed =
-      STAGE_DASHBOARD_CONFIG.orb.pointerFollowSmoothing *
-      (stageInputState.pointerDown ? STAGE_DASHBOARD_CONFIG.orb.pointerDownMultiplier : 1.0);
+    const followSpeed = stageInputState.pointerActive
+      ? (stageInputState.pointerDown ? 0.65 : 0.45)
+      : STAGE_DASHBOARD_CONFIG.orb.pointerFollowSmoothing;
     const smoothAlpha = stageInputState.keyboardActive
       ? 0.45
-      : clamp(followSpeed * (delta * 60), 0.02, 0.65);
+      : clamp(followSpeed * (delta * 60), 0.05, 0.95);
 
     let nextOrbU = lerp(prevOrbU, desiredU, smoothAlpha);
     let nextOrbV = lerp(prevOrbV, desiredV, smoothAlpha);
