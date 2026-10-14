@@ -6,7 +6,6 @@ import { clamp, lerp } from '../lib/math.ts';
 import { useAppStore, type DiscordStatusType } from '../store/useAppStore.ts';
 import { EVA_CONFIG, type SpringSpec } from './eva.config.ts';
 import {
-  disposeEvaGpuTextures,
   ensureEvaArtBitmaps,
   EVA_META,
   getEvaMemoryUsageBytes,
@@ -498,9 +497,10 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
 
     let visible = false;
     if (role === 'main') {
-      visible =
-        (store.activeRoute === '/dashboard' && !rt.active) ||
-        (rt.active && rt.direction === 'to-home');
+      const showDashboardInMain =
+        store.activeRoute === '/dashboard' ||
+        (rt.active && rt.direction === 'to-home' && store.activeRoute !== '/');
+      visible = showDashboardInMain;
     } else {
       visible = rt.active && rt.direction === 'to-dashboard';
     }
@@ -511,7 +511,7 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
 
     if (!visible) {
       if (role === 'main' && store.activeRoute === '/' && !rt.active && prevRouteRef.current === '/dashboard') {
-        disposeEvaGpuTextures();
+        // Keep Eva GPU textures resident in VRAM to prevent GPU stalls and re-allocation flashes
         prevRouteRef.current = '/';
         revealStartRef.current = null;
       }
@@ -524,8 +524,14 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
     const t = state.clock.elapsedTime;
     if (role === 'main' && store.activeRoute === '/dashboard' && prevRouteRef.current !== '/dashboard') {
       prevRouteRef.current = '/dashboard';
-      revealStartRef.current = null;
-      store.setDashboardRevealP(store.reducedMotion ? 1 : 0);
+      const isViaTransition = rt.active || store.dashboardRevealP >= 0.99;
+      if (isViaTransition || store.reducedMotion) {
+        revealStartRef.current = t - 2.0;
+        store.setDashboardRevealP(1.0);
+      } else {
+        revealStartRef.current = t;
+        store.setDashboardRevealP(0.0);
+      }
     }
 
     if (role === 'main' && gpuBundle && revealStartRef.current === null) {
@@ -536,7 +542,7 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
     if (role === 'main' && store.activeRoute === '/dashboard') {
       if (!gpuBundle) {
         revealP = 0.0;
-      } else if (store.reducedMotion) {
+      } else if (store.reducedMotion || revealP >= 1.0) {
         revealP = 1.0;
       } else if (revealStartRef.current !== null) {
         revealP = clamp((t - revealStartRef.current) / 1.2, 0, 1);

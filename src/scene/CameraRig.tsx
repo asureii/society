@@ -133,8 +133,8 @@ export const CameraRig: React.FC = () => {
     const rt = state.routeTransition;
 
     const mainShowingDashboard =
-      (state.activeRoute === '/dashboard' && !rt.active) ||
-      (rt.active && rt.direction === 'to-home');
+      state.activeRoute === '/dashboard' ||
+      (rt.active && rt.direction === 'to-home' && state.activeRoute !== '/');
 
     if (mainShowingDashboard) {
       applyDashboardCameraPose(camera as THREE.PerspectiveCamera);

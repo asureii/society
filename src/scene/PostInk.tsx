@@ -74,6 +74,7 @@ const postFragment = /* glsl */ `
   uniform float uEdgeAmplitude;    // Low-frequency edge warp amplitude
   uniform float uSeed;             // Deterministic seed
   uniform float uBoilStep;         // Quantized 8-10 fps boil step
+  uniform int uIsRouteTransition;  // 1 if active route transition between Pilot File and Dashboard
 
   // S7 Doorway-Closing Finale uniforms
   uniform float uEndProgress;      // [0..1] single-clock finale scalar endP
@@ -340,8 +341,8 @@ const postFragment = /* glsl */ `
     // =========================================================================
     // 3. STANDARD BOUNDARY & ROUTE TRANSITIONS (uWipeProgress in (0, 1))
     // =========================================================================
-    // Strict discard guard outside transitions (preserves paper luminance >= 248/255)
-    if (uWipeProgress <= 0.0005 || uWipeProgress >= 0.9995) {
+    // Discard before transition starts (preserves paper luminance >= 248/255)
+    if (uWipeProgress <= 0.0005) {
       discard;
     }
 
@@ -350,6 +351,20 @@ const postFragment = /* glsl */ `
     vec2 anchorShift = (uOrbPosIn - uOrbPosOut) * settleEnv * 0.14;
     vec2 sampleUv = clamp(vUv + anchorShift, 0.0, 1.0);
     vec4 incomingSample = texture2D(uIncomingTex, sampleUv);
+
+    if (uIsRouteTransition == 1) {
+      // Route transition at or near completion: hold the incoming sample solidly.
+      // Never discard so there is zero flash before the router/main state resolves.
+      if (uWipeProgress >= 0.9995) {
+        gl_FragColor = incomingSample;
+        return;
+      }
+    } else {
+      // Strict discard guard outside boundary transitions
+      if (uWipeProgress >= 0.9995) {
+        discard;
+      }
+    }
 
     if (uReducedMotion == 1) {
       gl_FragColor = vec4(incomingSample.rgb, clamp(uWipeProgress, 0.0, 1.0));
@@ -459,6 +474,7 @@ export const PostInk: React.FC<PostInkProps> = ({ incomingTexture }) => {
       uWipeProgress: { value: 0 },
       uIrisRadius: { value: 0 },
       uTransitionType: { value: 0 },
+      uIsRouteTransition: { value: 0 },
       uOrbPosOut: { value: new THREE.Vector2(0.5, 0.5) },
       uOrbRadiusOut: { value: 0.08 },
       uOrbPosIn: { value: new THREE.Vector2(0.5, 0.5) },
@@ -565,6 +581,7 @@ export const PostInk: React.FC<PostInkProps> = ({ incomingTexture }) => {
       : cs.transitionType === 'panelSlice'
         ? 1
         : 0;
+    matRef.current.uniforms.uIsRouteTransition.value = isRouteTrans ? 1 : 0;
 
     if (isHomeActive && state.isRewinding) {
       const coverOrbWebGL: [number, number] = [

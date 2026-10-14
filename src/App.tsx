@@ -39,7 +39,7 @@ import { ScrollPill } from './ui/ScrollPill';
 import { SoundToggle } from './ui/SoundToggle';
 import { TransitionScrubber } from './ui/TransitionScrubber';
 
-const LazyDashboardPage = React.lazy(() => import('./dashboard/DashboardPage'));
+const LazyDashboardPage = React.lazy(prefetchDashboardRoute);
 
 function updateRouteDocumentMeta(route: AppRoute): void {
   if (typeof document === 'undefined') return;
@@ -219,6 +219,7 @@ const AppShell: React.FC = () => {
 
         // Readiness gate: preload dashboard chunk & wait for dashboard WebGL readiness
         await prefetchDashboardRoute();
+        state.setDashboardRevealP(1.0);
 
         state.setRouteTransition({
           active: true,
@@ -241,10 +242,13 @@ const AppShell: React.FC = () => {
           onComplete: () => {
             const st = useAppStore.getState();
             st.setActiveRoute('/dashboard');
-            st.setRouteTransition({ active: false, progress: 0 });
+            st.setDashboardRevealP(1.0);
             navigate('/dashboard');
             window.scrollTo({ top: 0, behavior: 'auto' });
-            transitioningRef.current = false;
+            requestAnimationFrame(() => {
+              useAppStore.getState().setRouteTransition({ active: false, progress: 0 });
+              transitioningRef.current = false;
+            });
           },
         });
       } else {
@@ -294,10 +298,12 @@ const AppShell: React.FC = () => {
           onComplete: () => {
             const st = useAppStore.getState();
             st.setActiveRoute('/');
-            st.setRouteTransition({ active: false, progress: 0 });
             navigate('/');
             window.scrollTo({ top: 0, behavior: 'auto' });
-            transitioningRef.current = false;
+            requestAnimationFrame(() => {
+              useAppStore.getState().setRouteTransition({ active: false, progress: 0 });
+              transitioningRef.current = false;
+            });
           },
         });
       }

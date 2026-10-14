@@ -143,10 +143,10 @@ export const Layer: React.FC<LayerProps> = ({
     // Synchronous single-clock + route-transition visibility check
     let isActiveSceneForRole = false;
     if (role === 'main') {
-      const mainShowingHome =
-        (state.activeRoute === '/' && !rt.active) ||
-        (rt.active && rt.direction === 'to-dashboard');
-      isActiveSceneForRole = mainShowingHome && cs.fromScene === sceneId;
+      const showHomeInMain =
+        state.activeRoute === '/' ||
+        (rt.active && rt.direction === 'to-dashboard' && state.activeRoute !== '/dashboard');
+      isActiveSceneForRole = showHomeInMain && cs.fromScene === sceneId;
     } else {
       if (rt.active) {
         isActiveSceneForRole =
