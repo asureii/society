@@ -16,9 +16,11 @@ export const ScrollPill: React.FC = () => {
   const labelRef = useRef<HTMLSpanElement | null>(null);
   const barRef = useRef<HTMLDivElement | null>(null);
 
+  const rt = useAppStore((s) => s.routeTransition);
+  const isLeavingToDashboard = rt.active && rt.direction === 'to-dashboard';
   const isScrubbingIntro = debugScrubber.enabled && debugScrubber.mode === 'intro';
   const hudOpacity =
-    activeRoute === '/dashboard'
+    activeRoute === '/dashboard' || isLeavingToDashboard
       ? 0
       : introState === 'done' && !isScrubbingIntro
         ? 1

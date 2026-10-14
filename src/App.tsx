@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect, useRef } from 'react';
+import React, { Suspense, useEffect, useLayoutEffect, useRef } from 'react';
 import {
   BrowserRouter,
   Route,
@@ -65,9 +65,55 @@ function updateRouteDocumentMeta(route: AppRoute): void {
   setMeta('meta[property="og:image"]', ogImage);
 }
 
+const useIsomorphicLayoutEffect =
+  typeof window !== 'undefined' ? useLayoutEffect : useEffect;
+
 const HomeRoute: React.FC = () => {
   useLenis();
   useHudCollisionCheck();
+
+  const rt = useAppStore((s) => s.routeTransition);
+  const reducedMotion = useAppStore((s) => s.reducedMotion);
+  const pinnedLayerRef = useRef<HTMLElement | null>(null);
+
+  // Animate pinned chapter panels OUT when leaving Home towards Dashboard
+  useEffect(() => {
+    if (!pinnedLayerRef.current) return;
+    if (rt.active && rt.direction === 'to-dashboard') {
+      if (reducedMotion) {
+        pinnedLayerRef.current.style.opacity = '0';
+      } else {
+        gsap.to(pinnedLayerRef.current, {
+          x: -50,
+          opacity: 0,
+          duration: 0.28,
+          ease: 'power2.in',
+        });
+      }
+    }
+  }, [rt.active, rt.direction, reducedMotion]);
+
+  // Animate pinned chapter panels IN when landing on Home
+  useIsomorphicLayoutEffect(() => {
+    if (!pinnedLayerRef.current) return;
+    const isDone = useAppStore.getState().introState === 'done';
+    if (!isDone) return;
+    if (reducedMotion) {
+      pinnedLayerRef.current.style.opacity = '1';
+    } else {
+      gsap.fromTo(
+        pinnedLayerRef.current,
+        { x: -50, opacity: 0 },
+        {
+          x: 0,
+          opacity: 1,
+          duration: 0.44,
+          ease: 'power3.out',
+          clearProps: 'transform,opacity',
+        }
+      );
+    }
+  }, [reducedMotion]);
 
   return (
     <>
@@ -87,6 +133,7 @@ const HomeRoute: React.FC = () => {
 
       {/* 2. Single Fixed Pinned Panel Layer: position: fixed; inset: 0; pointer-events: none */}
       <main
+        ref={pinnedLayerRef}
         id="pinned-panel-layer"
         className="fixed inset-0 pointer-events-none z-10 overflow-hidden"
         aria-label="Pilot Chapters"

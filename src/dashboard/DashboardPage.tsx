@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { PROFILE } from '../config/profile';
+import { gsap } from '../lib/gsap';
 import { useAppStore } from '../store/useAppStore';
 import { STAGE_DASHBOARD_CONFIG } from './stage.config';
 import { DASHBOARD_LAYOUT_CONFIG, type DashboardWidgetSlotId } from './layout.config';
@@ -12,6 +13,9 @@ import {
 import { resolveWidgetForSlot, useWidgetRegistryVersion } from './widgets/registry';
 import { EmptySlotPlaceholder, WidgetFrame } from './widgets/WidgetFrame';
 import { EvaDebugOverlay } from './EvaDebugOverlay';
+
+const useIsomorphicLayoutEffect =
+  typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
 const SlotRenderer: React.FC<{ slotId: DashboardWidgetSlotId }> = ({ slotId }) => {
   const widget = resolveWidgetForSlot(slotId);
@@ -36,6 +40,118 @@ const SlotRenderer: React.FC<{ slotId: DashboardWidgetSlotId }> = ({ slotId }) =
 export const DashboardPage: React.FC = () => {
   useWidgetRegistryVersion();
   const { rightRail, bottomDock } = STAGE_DASHBOARD_CONFIG.uiSafeRects;
+
+  const rightRailRef = useRef<HTMLElement | null>(null);
+  const bottomDockRef = useRef<HTMLElement | null>(null);
+  const mobileStackRef = useRef<HTMLElement | null>(null);
+
+  const reducedMotion = useAppStore((s) => s.reducedMotion);
+  const rt = useAppStore((s) => s.routeTransition);
+
+  // Panel entrance animation on mount (staggered mechanical slide-in from the right)
+  useIsomorphicLayoutEffect(() => {
+    if (reducedMotion) return;
+
+    if (rightRailRef.current) {
+      const cards = rightRailRef.current.querySelectorAll('[data-slot-id]');
+      if (cards.length > 0) {
+        gsap.fromTo(
+          cards,
+          {
+            x: 72,
+            opacity: 0,
+          },
+          {
+            x: 0,
+            opacity: 1,
+            duration: 0.44,
+            stagger: 0.06,
+            ease: 'power3.out',
+            clearProps: 'transform,opacity',
+          }
+        );
+      }
+    }
+
+    if (bottomDockRef.current) {
+      gsap.fromTo(
+        bottomDockRef.current,
+        { y: 32, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 0.4,
+          ease: 'power3.out',
+          clearProps: 'transform,opacity',
+        }
+      );
+    }
+
+    if (mobileStackRef.current) {
+      const mobileCards = mobileStackRef.current.querySelectorAll('[data-slot-id]');
+      if (mobileCards.length > 0) {
+        gsap.fromTo(
+          mobileCards,
+          { y: 36, opacity: 0 },
+          {
+            y: 0,
+            opacity: 1,
+            duration: 0.4,
+            stagger: 0.05,
+            ease: 'power3.out',
+            clearProps: 'transform,opacity',
+          }
+        );
+      }
+    }
+  }, [reducedMotion]);
+
+  // Panel exit animation when navigating back to Pilot File ('to-home')
+  useEffect(() => {
+    if (!rt.active || rt.direction !== 'to-home') return;
+
+    if (reducedMotion) {
+      if (rightRailRef.current) rightRailRef.current.style.opacity = '0';
+      if (bottomDockRef.current) bottomDockRef.current.style.opacity = '0';
+      if (mobileStackRef.current) mobileStackRef.current.style.opacity = '0';
+      return;
+    }
+
+    if (rightRailRef.current) {
+      const cards = rightRailRef.current.querySelectorAll('[data-slot-id]');
+      if (cards.length > 0) {
+        gsap.to(cards, {
+          x: 72,
+          opacity: 0,
+          duration: 0.28,
+          stagger: 0.03,
+          ease: 'power2.in',
+        });
+      }
+    }
+
+    if (bottomDockRef.current) {
+      gsap.to(bottomDockRef.current, {
+        y: 36,
+        opacity: 0,
+        duration: 0.25,
+        ease: 'power2.in',
+      });
+    }
+
+    if (mobileStackRef.current) {
+      const mobileCards = mobileStackRef.current.querySelectorAll('[data-slot-id]');
+      if (mobileCards.length > 0) {
+        gsap.to(mobileCards, {
+          y: 36,
+          opacity: 0,
+          duration: 0.25,
+          stagger: 0.03,
+          ease: 'power2.in',
+        });
+      }
+    }
+  }, [rt.active, rt.direction, reducedMotion]);
 
   const [isMobile, setIsMobile] = useState<boolean>(() =>
     typeof window !== 'undefined' ? window.innerWidth < 768 : false
@@ -158,6 +274,7 @@ export const DashboardPage: React.FC = () => {
         <>
           {/* Desktop Right Widget Rail (Strictly inside uiSafeRects.rightRail: x 70%..97%, y 11%..95%) */}
           <aside
+            ref={rightRailRef}
             aria-label="Primary Telemetry Rail"
             data-widget-rail="right"
             style={{
@@ -177,6 +294,7 @@ export const DashboardPage: React.FC = () => {
           {/* Desktop Bottom Dock (Strictly inside uiSafeRects.bottomDock: x 52%..69%, y 66%..95%) */}
           {DASHBOARD_LAYOUT_CONFIG.bottomDockSlots.length > 0 && (
             <aside
+              ref={bottomDockRef}
               aria-label="Secondary Telemetry Dock"
               data-widget-rail="bottom"
               style={{
@@ -196,6 +314,7 @@ export const DashboardPage: React.FC = () => {
       ) : (
         /* Mobile Single-Column Ordered Widget Stack below 58dvh stage */
         <section
+          ref={mobileStackRef}
           aria-label="Mobile Telemetry Stack"
           data-widget-rail="mobile-stack"
           className="relative z-20 px-4 pb-10 pt-2 flex flex-col gap-3 bg-[var(--paper)] border-t-2 border-[var(--ink)]"
