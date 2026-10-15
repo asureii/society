@@ -357,4 +357,14 @@ npm run build
 npm run preview:ghpages
 ```
 
+---
+
+## Legal & Intellectual Property Disclaimer
+
+This project is a non-commercial, personal creative portfolio and transformative fan homage.
+
+- **Intellectual Property**: *Neon Genesis Evangelion*, *Evangelion Unit-01*, and associated character designs, emblems, and world concepts are trademarks and copyrights of **Studio Khara / Groundworks**.
+- **Transformative Fan Art**: All Eva-01 illustrations, procedural canvas generation algorithms, shaders, and animations in this project are original code and art created as fan homage in good faith under Studio Khara's published non-commercial fan creation guidelines.
+- **Non-Commercial**: This repository and its deployed site are strictly non-monetized and educational. No commercial use, affiliation, sponsorship, or endorsement by Studio Khara or Gainax is claimed or implied.
+
 
