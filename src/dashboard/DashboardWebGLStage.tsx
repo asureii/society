@@ -164,6 +164,108 @@ const EVA_REVEAL_FRAG = /* glsl */ `
   }
 `;
 
+const FALLEN_CITY_FRAG = /* glsl */ `
+  precision highp float;
+  varying vec2 vUv;
+
+  uniform sampler2D uTex;
+  uniform sampler2D uOrderTex;
+  uniform float uReveal;
+  uniform float uTime;
+  uniform vec2 uMouse;
+  uniform vec2 uOrbPos;
+  uniform float uBoilStep;
+  uniform float uPresenceStatus;
+  uniform float uReducedMotion;
+  uniform vec3 uColorPaper;
+  uniform vec3 uColorInk;
+  uniform vec3 uColorRed;
+
+  float hash21(vec2 p) {
+    p = fract(p * vec2(234.34, 435.345));
+    p += dot(p, p + 34.23);
+    return fract(p.x * p.y);
+  }
+
+  float valueNoise(vec2 st) {
+    vec2 i = floor(st);
+    vec2 f = fract(st);
+    float a = hash21(i);
+    float b = hash21(i + vec2(1.0, 0.0));
+    float c = hash21(i + vec2(0.0, 1.0));
+    float d = hash21(i + vec2(1.0, 1.0));
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+  }
+
+  void main() {
+    float motionScale = 1.0 - uReducedMotion;
+
+    // Atmospheric heat/wind shimmer on upper sky and high ruins
+    float skyMask = smoothstep(0.20, 0.70, vUv.y);
+    float rippleWave = sin(vUv.y * 24.0 + uTime * 1.8) * cos(vUv.x * 20.0 - uTime * 1.4);
+    vec2 rippleOffset = vec2(rippleWave * 0.0016 * skyMask * motionScale);
+
+    // Subtle atmospheric displacement ripple around the floating Red Orb position
+    vec2 orbDiff = (vUv - uOrbPos) * vec2(1.5, 1.0);
+    float orbDist = length(orbDiff);
+    float orbHalo = smoothstep(0.32, 0.04, orbDist);
+    float orbWave = sin(orbDist * 36.0 - uTime * 3.5) * orbHalo * 0.0022 * motionScale;
+    vec2 orbOffset = normalize(orbDiff + vec2(1e-5)) * orbWave;
+
+    vec2 baseUv = clamp(vUv + rippleOffset + orbOffset, 0.002, 0.998);
+
+    // Pseudo-depth based on ink weight: nearer ruined structures are darker, sky is light
+    // Gives foreground concrete masses slightly more mouse parallax than far skyline
+    vec4 rawTex = texture2D(uTex, baseUv);
+    float rawLuma = dot(rawTex.rgb, vec3(0.299, 0.587, 0.114));
+    float depthVal = clamp(1.0 - rawLuma, 0.0, 1.0);
+    vec2 depthDisplace = uMouse * (depthVal - 0.35) * 0.0035 * motionScale;
+
+    // 9fps quantized hand-drawn manga line-boil (chatter along ink edges)
+    float boilNoise = (valueNoise(baseUv * 85.0 + vec2(uBoilStep * 17.3, uBoilStep * 29.1)) - 0.5) * 0.055 * motionScale;
+
+    vec2 sampleUv = clamp(baseUv + depthDisplace, 0.002, 0.998);
+    vec4 tex = texture2D(uTex, sampleUv);
+    float orderVal = texture2D(uOrderTex, sampleUv).r;
+
+    // Reveal edge mask
+    float edgeMask = uReveal >= 0.99
+      ? 1.0
+      : (1.0 - smoothstep(uReveal - 0.05, uReveal + 0.01, orderVal * 0.94));
+
+    // Red plate detection (ruin beacon towers, warning lights)
+    bool isRed = (tex.r - max(tex.g, tex.b)) > 0.18;
+
+    // Environmental presence reactivity:
+    // - DND (status == 2.0): beacon towers blink rhythmically
+    // - Offline / Unreachable (status == 3.0): intermittent flicker
+    if (isRed) {
+      float beaconPulse = 1.0;
+      if (abs(uPresenceStatus - 2.0) < 0.5 && uReducedMotion < 0.5) {
+        beaconPulse = step(0.4, sin(uTime * 5.0) * 0.5 + 0.5);
+      } else if (abs(uPresenceStatus - 3.0) < 0.5 && uReducedMotion < 0.5) {
+        beaconPulse = step(0.25, hash21(vec2(floor(uTime * 6.0), 12.3)));
+      }
+      vec3 redCol = mix(uColorPaper, uColorRed, beaconPulse * edgeMask);
+      gl_FragColor = vec4(redCol, 1.0);
+      return;
+    }
+
+    // Hand-drawn manga ink edge with line-boil threshold
+    float inkLuma = dot(tex.rgb, vec3(0.299, 0.587, 0.114));
+    float isInk = step(0.28, (1.0 - inkLuma) + boilNoise) * edgeMask;
+
+    // Fine paper fiber grain texture on white paper areas (<= 1.2% strength)
+    float fiber = (hash21(vUv * 580.0) - 0.5) * 0.012;
+    vec3 brightPaper = max(uColorPaper, vec3(0.992, 0.992, 0.988));
+    vec3 paperWithFiber = clamp(brightPaper + vec3(fiber), 0.976, 1.0);
+
+    vec3 col = mix(paperWithFiber, uColorInk, isInk);
+    gl_FragColor = vec4(col, 1.0);
+  }
+`;
+
 const EVA_EYE_FRAG = /* glsl */ `
   precision highp float;
   varying vec2 vUv;
@@ -358,6 +460,7 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
   const pupilMeshRef = useRef<THREE.Mesh | null>(null);
   const orbGroupRef = useRef<THREE.Group | null>(null);
 
+  const dampedMouseRef = useRef<[number, number]>([0, 0]);
   const revealStartRef = useRef<number | null>(null);
   const prevRouteRef = useRef<string>('/');
 
@@ -417,7 +520,23 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
     uColorRed: { value: new THREE.Vector3(...THEME_VEC3.red) },
   });
 
-  const bgUniforms = useMemo(() => makeRevealUniforms(true), [dummyTex]);
+  const bgUniforms = useMemo(
+    () => ({
+      uTex: { value: dummyTex as THREE.Texture },
+      uOrderTex: { value: dummyTex as THREE.Texture },
+      uReveal: { value: 1.0 },
+      uTime: { value: 0.0 },
+      uMouse: { value: new THREE.Vector2(0, 0) },
+      uOrbPos: { value: new THREE.Vector2(0.6, 0.4) },
+      uBoilStep: { value: 0.0 },
+      uPresenceStatus: { value: 0.0 },
+      uReducedMotion: { value: 0.0 },
+      uColorPaper: { value: new THREE.Vector3(...THEME_VEC3.paper) },
+      uColorInk: { value: new THREE.Vector3(...THEME_VEC3.ink) },
+      uColorRed: { value: new THREE.Vector3(...THEME_VEC3.red) },
+    }),
+    [dummyTex]
+  );
   const torsoUniforms = useMemo(() => makeRevealUniforms(false), [dummyTex]);
   const neckUniforms = useMemo(() => makeRevealUniforms(false), [dummyTex]);
   const headUniforms = useMemo(() => makeRevealUniforms(false), [dummyTex]);
@@ -659,12 +778,26 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
     const vHAtZero = 2 * Math.tan(fovRad) * camZ;
     const vWAtZero = vHAtZero * aspect;
 
+    const [targetMouseX, targetMouseY] = store.mouseTarget;
+    dampedMouseRef.current[0] = lerp(dampedMouseRef.current[0], targetMouseX, 0.08);
+    dampedMouseRef.current[1] = lerp(dampedMouseRef.current[1], targetMouseY, 0.08);
+
+    const parallaxScale = store.reducedMotion ? 0 : 1;
+    const bgParallaxX = dampedMouseRef.current[0] * -0.14 * 0.52 * parallaxScale;
+    const bgParallaxY = dampedMouseRef.current[1] * -0.08 * 0.32 * parallaxScale;
+    const bgDriftX = parallaxScale ? Math.sin(t * 0.45) * 0.028 : 0;
+    const bgDriftY = parallaxScale ? Math.cos(t * 0.38) * 0.018 : 0;
+
     if (bgMeshRef.current) {
       const camDistBg = Math.abs(camZ - (-2.0));
       const vHAtBg = 2 * Math.tan(fovRad) * camDistBg;
       const vWAtBg = vHAtBg * aspect;
-      bgMeshRef.current.position.set(0, persp.position.y, -2.0);
-      bgMeshRef.current.scale.set(vWAtBg * 1.02, vHAtBg * 1.02, 1);
+      bgMeshRef.current.position.set(
+        bgParallaxX + bgDriftX,
+        persp.position.y + bgParallaxY + bgDriftY,
+        -2.0
+      );
+      bgMeshRef.current.scale.set(vWAtBg * 1.08, vHAtBg * 1.08, 1);
     }
 
     if (rigRootGroupRef.current) {
@@ -870,12 +1003,39 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
         mat.uniforms.uReveal.value = rev;
       };
 
-      bindRevealLayer(
-        bgMatRef.current,
-        gpuBundle.backgroundTex,
-        gpuBundle.backgroundOrderTex,
-        Math.max(0.25, revealP)
-      );
+      if (bgMatRef.current) {
+        bgMatRef.current.uniforms.uTex.value = gpuBundle.backgroundTex;
+        bgMatRef.current.uniforms.uOrderTex.value = gpuBundle.backgroundOrderTex;
+        bgMatRef.current.uniforms.uReveal.value = Math.max(0.25, revealP);
+        bgMatRef.current.uniforms.uTime.value = store.reducedMotion ? 0 : t;
+        bgMatRef.current.uniforms.uMouse.value.set(
+          dampedMouseRef.current[0],
+          dampedMouseRef.current[1]
+        );
+        bgMatRef.current.uniforms.uOrbPos.value.set(projectedOrbUv[0], projectedOrbUv[1]);
+        const presenceMult =
+          store.discord.status === 'online'
+            ? 1.0
+            : store.discord.status === 'idle'
+              ? 0.7
+              : store.discord.status === 'dnd'
+                ? 1.2
+                : 0.4;
+        const boilRate = 9.0 * presenceMult;
+        const canBoil = !store.reducedMotion;
+        const boilStep = canBoil ? Math.floor(t * boilRate) % 12 : 0;
+        bgMatRef.current.uniforms.uBoilStep.value = boilStep;
+        const statusNum =
+          store.discord.unreachable || store.discord.status === 'offline'
+            ? 3.0
+            : store.discord.status === 'dnd'
+              ? 2.0
+              : store.discord.status === 'idle'
+                ? 1.0
+                : 0.0;
+        bgMatRef.current.uniforms.uPresenceStatus.value = statusNum;
+        bgMatRef.current.uniforms.uReducedMotion.value = store.reducedMotion ? 1.0 : 0.0;
+      }
       bindRevealLayer(torsoMatRef.current, gpuBundle.torsoTex, gpuBundle.torsoOrderTex);
       bindRevealLayer(neckMatRef.current, gpuBundle.neckTex, gpuBundle.neckOrderTex);
       bindRevealLayer(headMatRef.current, gpuBundle.headTex, gpuBundle.headOrderTex);
@@ -1007,7 +1167,7 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
         <shaderMaterial
           ref={bgMatRef}
           vertexShader={LAYER_VERT}
-          fragmentShader={EVA_REVEAL_FRAG}
+          fragmentShader={FALLEN_CITY_FRAG}
           uniforms={bgUniforms}
           depthWrite={false}
           toneMapped={false}
