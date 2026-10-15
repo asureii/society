@@ -33,10 +33,13 @@ jobs:
       - name: Configure Pages
         id: pages
         uses: actions/configure-pages@v5
+        continue-on-error: true
+        with:
+          enablement: true
 
       - name: Build static bundle with route shells
         env:
-          VITE_BASE: ${{ steps.pages.outputs.base_path }}/
+          VITE_BASE: ${{ steps.pages.outputs.base_path || '/society' }}/
         run: npm run build
 
       - name: Upload Pages artifact
