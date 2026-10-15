@@ -1,4 +1,4 @@
-import { drawEvaStageBackground } from './background.ts';
+import { drawEvaStageBackground, drawHandInkedRoadPuddle } from './background.ts';
 import { drawEvaNeckLayer, drawEvaTorsoLayer } from './body.ts';
 import { drawEvaDripsLayer } from './drips.ts';
 import { drawEvaEyeLayer, drawEvaPupilLayer } from './eye.ts';
@@ -27,6 +27,7 @@ export interface EvaWorkerResponse {
   eyeBitmap: ImageBitmap;
   pupilBitmap: ImageBitmap;
   dripsBitmap: ImageBitmap;
+  puddleBitmap: ImageBitmap;
 }
 
 function renderLayerWithOrder(
@@ -95,6 +96,11 @@ workerScope.onmessage = (ev: MessageEvent<EvaWorkerRequest>) => {
     drawEvaDripsLayer(ctx, c, 743)
   );
 
+  const puddleCanvas = new OffscreenCanvas(256, 128);
+  const puddleCtx = puddleCanvas.getContext('2d')!;
+  drawHandInkedRoadPuddle(puddleCtx, 128, 64, 96, 28, 715);
+  const puddleBitmap = puddleCanvas.transferToImageBitmap();
+
   const response: EvaWorkerResponse = {
     id,
     backgroundBitmap: bg.bitmap,
@@ -110,6 +116,7 @@ workerScope.onmessage = (ev: MessageEvent<EvaWorkerRequest>) => {
     eyeBitmap,
     pupilBitmap,
     dripsBitmap,
+    puddleBitmap,
   };
 
   workerScope.postMessage(response, [
@@ -126,5 +133,6 @@ workerScope.onmessage = (ev: MessageEvent<EvaWorkerRequest>) => {
     eyeBitmap,
     pupilBitmap,
     dripsBitmap,
+    puddleBitmap,
   ]);
 };

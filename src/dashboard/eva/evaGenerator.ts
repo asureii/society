@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { drawHandInkedOrb } from '../../scene/art/orb.ts';
 import { createRng } from '../../scene/art/rng.ts';
 import { useAppStore } from '../../store/useAppStore.ts';
-import { drawEvaStageBackground } from './background.ts';
+import { drawEvaStageBackground, drawHandInkedRoadPuddle } from './background.ts';
 import { drawEvaNeckLayer, drawEvaTorsoLayer } from './body.ts';
 import { drawEvaDripsLayer } from './drips.ts';
 import { drawEvaEyeLayer, drawEvaPupilLayer } from './eye.ts';
@@ -67,6 +67,7 @@ export interface EvaCpuBitmapCache {
   pupilBitmap: BitmapOrCanvas;
   dripsBitmap: BitmapOrCanvas;
   orbBitmap: BitmapOrCanvas;
+  puddleBitmap: BitmapOrCanvas;
   memoryBytes: number;
 }
 
@@ -85,6 +86,7 @@ export interface EvaGpuTextureBundle {
   pupilTex: THREE.Texture;
   dripsTex: THREE.Texture;
   orbTex: THREE.Texture;
+  puddleTex: THREE.Texture;
   memoryBytes: number;
   gpuUploaded: boolean;
 }
@@ -117,18 +119,28 @@ function generateOrbCanvas(size = 256): AnyCanvas {
   return canvas;
 }
 
+export function generatePuddleCanvas(w = 256, h = 128): AnyCanvas {
+  const { canvas, ctx } = createSurface(w, h, false);
+  ctx.clearRect(0, 0, w, h);
+  drawHandInkedRoadPuddle(ctx, w * 0.5, h * 0.5, w * 0.38, h * 0.22, 715);
+  return canvas;
+}
+
 function computeTotalMemoryBytes(isMobile: boolean): number {
   const bgSize = isMobile ? 768 : 1024;
   const primarySize = isMobile ? 512 : 768;
   const dripsSize = 512;
   const eyeSize = 256;
+  const puddleW = 256;
+  const puddleH = 128;
 
   const withOrder = (sz: number) => sz * sz * 4 + (sz / 2) * (sz / 2) * 4;
   return (
     withOrder(bgSize) +
     4 * withOrder(primarySize) +
     dripsSize * dripsSize * 4 +
-    3 * (eyeSize * eyeSize * 4)
+    3 * (eyeSize * eyeSize * 4) +
+    puddleW * puddleH * 4
   );
 }
 
@@ -175,6 +187,7 @@ function generateEvaOnMainThread(isMobile: boolean, eyeGlint: boolean): EvaCpuBi
   );
   const dripsBitmap = makeSimple(dripsSize, (ctx, c) => drawEvaDripsLayer(ctx, c, 743));
   const orbBitmap = generateOrbCanvas(256);
+  const puddleBitmap = generatePuddleCanvas(256, 128);
 
   return {
     mainSize: bgSize,
@@ -192,6 +205,7 @@ function generateEvaOnMainThread(isMobile: boolean, eyeGlint: boolean): EvaCpuBi
     pupilBitmap,
     dripsBitmap,
     orbBitmap,
+    puddleBitmap,
     memoryBytes: computeTotalMemoryBytes(isMobile),
   };
 }
@@ -263,6 +277,7 @@ export function ensureEvaArtBitmaps(
           pupilBitmap: data.pupilBitmap,
           dripsBitmap: data.dripsBitmap,
           orbBitmap: generateOrbCanvas(256),
+          puddleBitmap: data.puddleBitmap,
           memoryBytes: computeTotalMemoryBytes(isMobile),
         };
         cachedCpuBitmaps = built;
@@ -329,6 +344,7 @@ export function getOrUploadEvaGpuBundle(
       pupilTex: makeThreeTexture(cachedCpuBitmaps.pupilBitmap, false),
       dripsTex: makeThreeTexture(cachedCpuBitmaps.dripsBitmap, false),
       orbTex: makeThreeTexture(cachedCpuBitmaps.orbBitmap, false),
+      puddleTex: makeThreeTexture(cachedCpuBitmaps.puddleBitmap, false),
       memoryBytes: cachedCpuBitmaps.memoryBytes,
       gpuUploaded: false,
     };
@@ -349,6 +365,7 @@ export function getOrUploadEvaGpuBundle(
       activeGpuBundle.pupilTex,
       activeGpuBundle.dripsTex,
       activeGpuBundle.orbTex,
+      activeGpuBundle.puddleTex,
     ];
     for (const t of allTex) {
       renderer.initTexture(t);
@@ -374,6 +391,7 @@ export function disposeEvaGpuTextures(): void {
   activeGpuBundle.pupilTex.dispose();
   activeGpuBundle.dripsTex.dispose();
   activeGpuBundle.orbTex.dispose();
+  activeGpuBundle.puddleTex.dispose();
   activeGpuBundle = null;
 }
 

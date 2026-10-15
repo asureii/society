@@ -35,6 +35,7 @@ export interface EvaBackgroundOptions {
   orbUv?: [number, number];
   status?: 'online' | 'idle' | 'dnd' | 'offline';
   unreachable?: boolean;
+  includeStaticPuddle?: boolean;
 }
 
 /**
@@ -736,26 +737,11 @@ export function drawEvaStageBackground(
     );
   }
 
-  // Wet street puddle reflection of the red dot sun (sparse red accent)
-  const puddleX = W * 0.525;
-  const puddleY = H * 0.685;
-  const puddleRx = 24;
-  const puddleRy = 7;
-  for (let r = -puddleRy + 1; r < puddleRy; r += 2) {
-    const xHalf = Math.sqrt(Math.max(0, 1 - (r / puddleRy) ** 2)) * puddleRx;
-    drawInkStroke(
-      ctx,
-      [
-        [puddleX - xHalf, puddleY + r],
-        [puddleX + xHalf, puddleY + r],
-      ],
-      rng,
-      {
-        baseWidth: 1.3,
-        color: THEME_COLORS.red,
-        taperScale: 1.2,
-      }
-    );
+  // Wet street puddle reflection of the red dot sun:
+  // Rendered dynamically in DashboardWebGLStage & composite frame so it follows the cursor.
+  // Static baking is only enabled if explicitly requested via options.includeStaticPuddle.
+  if (options?.includeStaticPuddle) {
+    drawHandInkedRoadPuddle(ctx, W * 0.525, H * 0.685, 24, 7, seed + 13);
   }
 
   // Foreground rubble: concrete chunks strictly in bottom corners
@@ -842,3 +828,35 @@ export function drawEvaStageBackground(
 
   recorder.captureStage(canvas, 0.75, 1.0, 'bottom-up');
 }
+
+/**
+ * Draws the hand-inked crimson road puddle reflection.
+ * Composed of stacked horizontal ink hatch strokes forming a perspective ellipse.
+ */
+export function drawHandInkedRoadPuddle(
+  ctx: Canvas2DContext,
+  cx: number,
+  cy: number,
+  rx = 24,
+  ry = 7,
+  seed = 715
+): void {
+  const rng = createRng(seed);
+  for (let r = -ry + 1; r < ry; r += 2) {
+    const xHalf = Math.sqrt(Math.max(0, 1 - (r / ry) ** 2)) * rx;
+    drawInkStroke(
+      ctx,
+      [
+        [cx - xHalf, cy + r],
+        [cx + xHalf, cy + r],
+      ],
+      rng,
+      {
+        baseWidth: 1.3,
+        color: THEME_COLORS.red,
+        taperScale: 1.2,
+      }
+    );
+  }
+}
+

@@ -656,6 +656,23 @@ function renderDashboardCompositedFrame(opts: RenderDashboardOptions): {
   // 1. Fallen City hand-inked ruined city background
   blitCanvasToSurface(surface, layers.bg, 0, 0, W, H, false);
 
+  // 1b. Dynamic red road puddle reflection tracking underneath orbUv
+  const puddleDepthT = clamp((orbUv[1] - 0.20) / (0.58 - 0.20), 0, 1);
+  const puddleNormV = lerp(0.63, 0.74, puddleDepthT);
+  const puddleY = Math.round(puddleNormV * H);
+  const normDepth = clamp((puddleNormV - 0.53) / (1.0 - 0.53), 0, 1);
+  const roadLeft = (0.51 + (0.22 - 0.51) * normDepth) * W;
+  const roadRight = (0.51 + (0.80 - 0.51) * normDepth) * W;
+  const puddleX = Math.round(clamp(orbUv[0] * W, roadLeft, roadRight));
+  const pScale = lerp(0.75, 1.30, puddleDepthT);
+  const puddleRx = Math.round(24 * pScale * (W / 1024));
+  const puddleRy = Math.round(7 * pScale * (H / 1024));
+
+  for (let r = -puddleRy + 1; r < puddleRy; r += 2) {
+    const xHalf = Math.sqrt(Math.max(0, 1 - (r / puddleRy) ** 2)) * puddleRx;
+    surface.drawLine(puddleX - xHalf, puddleY + r, puddleX + xHalf, puddleY + r, 1.4, COL_RED);
+  }
+
   // 2. Eva-01 1-to-1 Bust Silhouette with 7px dilated white keyline
   const evaSize = Math.round(isMob ? H * 0.42 : H * 0.86);
   const evaX = Math.round(-0.02 * evaSize);
