@@ -51,44 +51,43 @@ export const Timeline: React.FC = () => {
       alignment="full"
     >
       {/* Top half stays open for S6 Emaki Handscroll arches and sunset orb; stationary panel below */}
-      <div className="w-full flex-1 flex flex-col justify-end pb-2 pointer-events-none">
+      <div className="w-full flex-1 flex flex-col justify-end pb-1 sm:pb-2 pointer-events-none">
         <MangaPanel
           panelCode="06 // EMAKI CHRONOLOGY"
           panelTitle="HORIZONTAL MILESTONE TRACK // 01–04"
           redAccentCorner
-          className="max-h-[45vh] lg:max-h-none overflow-hidden"
         >
           {/* Four Milestone Cards loaded once and kept permanently readable */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-1.5 sm:gap-3">
             {PROFILE.timeline.map((entry, idx) => (
               <article
                 key={entry.id}
                 ref={(el) => {
                   cardRefs.current[idx] = el;
                 }}
-                className="border-2 border-ink bg-paper p-2.5 flex flex-col justify-between"
+                className="border-2 border-ink bg-paper p-2 sm:p-2.5 flex flex-col justify-between min-w-0"
               >
                 <div>
-                  <div className="flex items-center justify-between gap-1 border-b border-ink/20 pb-1 mb-1">
-                    <span className="bg-ink text-paper-pure font-mono text-[9px] font-bold px-1 py-0.2 uppercase">
-                      {entry.code} // BEACON 0{idx + 1}
+                  <div className="flex items-center justify-between gap-1 border-b border-ink/20 pb-0.5 sm:pb-1 mb-1">
+                    <span className="bg-ink text-paper-pure font-mono text-[8px] sm:text-[9px] font-bold px-1 py-0.2 uppercase truncate">
+                      {entry.code} // 0{idx + 1}
                     </span>
-                    <span className="font-mono text-[9px] font-bold text-ink">
+                    <span className="font-mono text-[8px] sm:text-[9px] font-bold text-ink shrink-0">
                       {entry.period}
                     </span>
                   </div>
-                  <h3 className="font-serif font-bold text-xs sm:text-sm text-ink uppercase leading-snug">
+                  <h3 className="font-serif font-bold text-[11px] sm:text-sm text-ink uppercase leading-snug truncate">
                     {entry.title}
                   </h3>
-                  <div className="font-mono text-[9px] sm:text-[10px] font-bold text-red mt-0.5 mb-1">
+                  <div className="font-mono text-[8px] sm:text-[10px] font-bold text-red mt-0.5 mb-0.5 sm:mb-1 truncate">
                     {entry.organization} • {entry.classification}
                   </div>
-                  <p className="font-sans text-[11px] sm:text-xs text-ink leading-snug line-clamp-3">
+                  <p className="font-sans text-[10px] sm:text-xs text-ink leading-snug line-clamp-2 sm:line-clamp-3">
                     {entry.summary}
                   </p>
                 </div>
 
-                <div className="mt-1.5 pt-1 border-t border-ink/20 flex items-center justify-between font-mono text-[9px] sm:text-[10px] font-bold uppercase">
+                <div className="hidden sm:flex mt-1.5 pt-1 border-t border-ink/20 items-center justify-between font-mono text-[9px] sm:text-[10px] font-bold uppercase">
                   <span className="truncate max-w-[130px]">{entry.caption}</span>
                   <span className="text-red shrink-0">
                     0{idx + 1}/0{PROFILE.timeline.length}

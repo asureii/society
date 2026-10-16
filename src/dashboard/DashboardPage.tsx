@@ -197,10 +197,17 @@ export const DashboardPage: React.FC = () => {
 
   // Global window pointer tracking so the red orb tracks cursor across entire viewport
   useEffect(() => {
+    const isInsideScrollableMobileRail = (target: EventTarget | null): boolean => {
+      if (!(target instanceof HTMLElement)) return false;
+      return Boolean(target.closest('[data-widget-rail="mobile-stack"], [data-hud]'));
+    };
+
     const onPointerMove = (e: PointerEvent) => {
+      if (e.pointerType === 'touch' && isInsideScrollableMobileRail(e.target)) return;
       updateStagePointerFromClient(e.clientX, e.clientY, e.buttons > 0);
     };
     const onPointerDown = (e: PointerEvent) => {
+      if (e.pointerType === 'touch' && isInsideScrollableMobileRail(e.target)) return;
       updateStagePointerFromClient(e.clientX, e.clientY, true);
     };
     const onPointerUp = () => {
@@ -241,13 +248,13 @@ export const DashboardPage: React.FC = () => {
       id="dashboard-page"
       data-route="dashboard"
       aria-label="Pilot Live Telemetry Dashboard"
-      className="relative w-full h-[100dvh] overflow-hidden select-none"
+      className="relative w-full h-[100dvh] flex flex-col md:block overflow-hidden select-none"
     >
       <h1 className="sr-only">
         {PROFILE.fullName} — Live Telemetry &amp; Eva-01 Berserk Dashboard
       </h1>
 
-      {/* Interactive Stage Region (Full viewport behind HUD/Rails on Desktop, Top 58dvh on Mobile) */}
+      {/* Interactive Stage Region (Full viewport behind HUD/Rails on Desktop, Top 48dvh on Mobile) */}
       <div
         id="dashboard-stage-target"
         data-dashboard-stage
@@ -265,7 +272,7 @@ export const DashboardPage: React.FC = () => {
           stageInputState.pointerDown = false;
         }}
         onKeyDown={handleStageKeyDown}
-        className="relative w-full h-[58dvh] md:fixed md:inset-0 md:h-full z-10 cursor-crosshair focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-[var(--red)]"
+        className="relative w-full h-[48dvh] shrink-0 md:fixed md:inset-0 md:h-full z-10 cursor-crosshair focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-[var(--red)]"
       />
 
       <EvaDebugOverlay />
@@ -312,12 +319,12 @@ export const DashboardPage: React.FC = () => {
           )}
         </>
       ) : (
-        /* Mobile Single-Column Ordered Widget Stack below 58dvh stage */
+        /* Mobile Single-Column Scrollable Widget Stack below 48dvh stage */
         <section
           ref={mobileStackRef}
           aria-label="Mobile Telemetry Stack"
           data-widget-rail="mobile-stack"
-          className="relative z-20 px-4 pb-10 pt-2 flex flex-col gap-3 bg-[var(--paper)] border-t-2 border-[var(--ink)]"
+          className="relative z-20 flex-1 min-h-0 overflow-y-auto overscroll-contain px-3.5 pb-14 pt-2.5 flex flex-col gap-2.5 bg-[var(--paper)] border-t-2 border-[var(--ink)] pointer-events-auto select-auto"
         >
           {DASHBOARD_LAYOUT_CONFIG.mobileOrder.map((slotId) => (
             <SlotRenderer key={slotId} slotId={slotId} />

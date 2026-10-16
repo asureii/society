@@ -698,9 +698,15 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
     const vHAtBg = 2 * Math.tan(fovRad) * camDistBg;
     const vWAtBg = vHAtBg * aspect;
 
+    const bgWorldW = isMob ? Math.max(vWAtBg * 1.02, vHAtBg * 0.78 * 0.82) : vWAtBg * 1.02;
+    const bgWorldH = isMob ? vHAtBg * 0.78 : vHAtBg * 1.02;
+    const bgWorldY = isMob
+      ? persp.position.y + (vHAtBg - bgWorldH) * 0.5
+      : persp.position.y;
+
     if (bgMeshRef.current) {
-      bgMeshRef.current.position.set(0, persp.position.y, -2.0);
-      bgMeshRef.current.scale.set(vWAtBg * 1.02, vHAtBg * 1.02, 1);
+      bgMeshRef.current.position.set(0, bgWorldY, -2.0);
+      bgMeshRef.current.scale.set(bgWorldW, bgWorldH, 1);
     }
 
     // Road puddle reflection tracking underneath cursor/orb
@@ -715,25 +721,26 @@ export const DashboardWebGLStage: React.FC<DashboardWebGLStageProps> = ({
 
     if (puddleMeshRef.current) {
       const pScale = lerp(0.75, 1.30, puddleDepthT);
-      const puddleWorldX = (puddleNormU - 0.5) * vWAtBg;
-      const puddleWorldY = (0.5 - puddleNormV) * vHAtBg + persp.position.y;
-      const puddleWorldW = (48 / 1024) * vWAtBg * pScale;
-      const puddleWorldH = (14 / 1024) * vHAtBg * pScale;
+      const puddleWorldX = (puddleNormU - 0.5) * bgWorldW;
+      const puddleWorldY = (0.5 - puddleNormV) * bgWorldH + bgWorldY;
+      const puddleWorldW = (48 / 1024) * bgWorldW * pScale;
+      const puddleWorldH = (14 / 1024) * bgWorldH * pScale;
       puddleMeshRef.current.position.set(puddleWorldX, puddleWorldY, -1.99);
       puddleMeshRef.current.scale.set(puddleWorldW, puddleWorldH, 1);
     }
 
     if (rigRootGroupRef.current) {
       if (isMob) {
-        const mobStageWorldH = vHAtZero * 0.42;
-        const desiredHWorld = mobStageWorldH / EVA_PROPORTIONS.visibleHeads;
-        const rigScale = desiredHWorld / EVA_CONFIG.headUnitWorld;
-        const bottomWorldY = persp.position.y + vHAtZero * (0.5 - 0.44);
+        // Mobile: constrain Eva plane by both the 48dvh stage height and portrait viewport width,
+        // and ground her chest crop (v = 0.96 of plane) flush on the 48dvh mobile panel divider.
+        const planeWorldSpan = Math.min(vHAtZero * 0.43, vWAtZero * 0.78);
+        const rigScale = planeWorldSpan / P_SIZE;
+        const stageDividerWorldY = persp.position.y + vHAtZero * (0.5 - 0.48);
         const leftWorldX = -vWAtZero * 0.5;
         rigRootGroupRef.current.scale.set(rigScale, rigScale, 1);
         rigRootGroupRef.current.position.set(
-          leftWorldX + P_SIZE * 0.5 * rigScale - 0.04 * desiredHWorld,
-          bottomWorldY + P_SIZE * 0.5 * rigScale - 0.04 * desiredHWorld,
+          leftWorldX + planeWorldSpan * 0.5 - 0.02 * planeWorldSpan,
+          stageDividerWorldY + planeWorldSpan * 0.5 - 0.042 * planeWorldSpan,
           0
         );
       } else {

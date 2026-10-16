@@ -88,9 +88,9 @@ export const Skills: React.FC = () => {
       alignment="full"
     >
       {/* Upper area stays open for S5 Zenith Convergence & Red Hex Cell; 3 Pillars positioned below */}
-      <div className="w-full flex-1 flex flex-col justify-end pb-2 pointer-events-none">
+      <div className="w-full flex-1 flex flex-col justify-end pb-1 sm:pb-2 pointer-events-none">
         {/* Three Irregular Skewed Manga Panels (Melchior / Balthasar / Caspar) loaded once and kept intact */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 sm:gap-3 max-h-[45vh] lg:max-h-none overflow-hidden">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-1.5 sm:gap-3">
           {PROFILE.magiSkills.map((col, idx) => (
             <MangaPanel
               key={col.code}
@@ -106,17 +106,17 @@ export const Skills: React.FC = () => {
                 }}
               >
                 <div>
-                  <div className="font-mono text-[10px] font-bold uppercase tracking-wider text-red border-b border-ink/15 pb-1 mb-1.5">
+                  <div className="font-mono text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-red border-b border-ink/15 pb-0.5 sm:pb-1 mb-1 sm:mb-1.5">
                     {col.category}
                   </div>
-                  <ul className="space-y-1 sm:space-y-1.5">
+                  <ul className="grid grid-cols-2 lg:grid-cols-1 gap-1 sm:gap-1.5">
                     {col.items.map((item) => (
                       <li
                         key={item.name}
-                        className="border border-ink px-2 py-1 bg-paper flex flex-col gap-0.5"
+                        className="border border-ink px-1.5 sm:px-2 py-0.5 sm:py-1 bg-paper flex flex-col gap-0.5 min-w-0"
                       >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-serif font-bold text-xs text-ink truncate">
+                        <div className="flex items-center justify-between gap-1 sm:gap-2">
+                          <span className="font-serif font-bold text-[11px] sm:text-xs text-ink truncate">
                             {item.name}
                           </span>
                           <HatchTierIndicator
@@ -124,7 +124,7 @@ export const Skills: React.FC = () => {
                             label={item.tierLabel}
                           />
                         </div>
-                        <div className="font-mono text-[9px] sm:text-[10px] text-ink/85 truncate">
+                        <div className="hidden sm:block font-mono text-[9px] sm:text-[10px] text-ink/85 truncate">
                           {item.spec}
                         </div>
                       </li>
@@ -132,7 +132,7 @@ export const Skills: React.FC = () => {
                   </ul>
                 </div>
 
-                <div className="mt-1.5 pt-1 border-t border-ink/20 flex items-center justify-between font-mono text-[9px] sm:text-[10px] font-bold uppercase">
+                <div className="hidden sm:flex mt-1.5 pt-1 border-t border-ink/20 items-center justify-between font-mono text-[9px] sm:text-[10px] font-bold uppercase">
                   <span>STATUS: ONLINE</span>
                   <span className="text-red">PILLAR 0{idx + 1}</span>
                 </div>

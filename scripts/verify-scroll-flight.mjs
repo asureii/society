@@ -414,7 +414,7 @@ function verifyReverseScroll() {
   console.log('✔ [6/7] Reverse scroll scrub (1.0 -> 0.0) verified clean with zero hysteresis.');
 }
 
-// 6. Verify Mobile Bottom Sheet <= 45vh & Zero React Scroll State Subscriptions in Chapters
+// 6. Verify Mobile Non-Clipping & Zero React Scroll State Subscriptions in Chapters
 function verifyChapterConstraints() {
   const chapterFiles = [
     'src/chapters/About.tsx',
@@ -427,15 +427,15 @@ function verifyChapterConstraints() {
   for (const rel of chapterFiles) {
     const src = fs.readFileSync(path.join(ROOT, rel), 'utf8');
     assert(
-      src.includes('max-h-[45vh]'),
-      `${rel} must enforce mobile bottom sheet max-h-[45vh]`,
+      !src.includes('max-h-[45vh]'),
+      `${rel} must not clip mobile panels with max-h-[45vh]`,
     );
     assert(
       !src.includes('useAppStore((s) => s.chapterProgress'),
       `${rel} must not subscribe to chapterProgress via React hooks (use refs in gsap.ticker instead)`,
     );
   }
-  console.log('✔ [7/7] Mobile <= 45vh constraint and zero React re-renders per scroll tick verified across all chapters.');
+  console.log('✔ [7/7] Mobile non-clipping layout and zero React re-renders per scroll tick verified across all chapters.');
 }
 
 verifyWindowRemoval();

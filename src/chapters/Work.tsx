@@ -155,10 +155,9 @@ export const Work: React.FC = () => {
         </div>
       )}
 
-      {/* Pinned 2-Wing Spread: Left Repos (5 cols) + Center Void for Focal Rooftops & Canal (2 cols) + Right Repos (5 cols) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 sm:gap-3 items-stretch max-h-[45vh] lg:max-h-none overflow-hidden">
+      <div className="grid grid-cols-2 lg:grid-cols-12 gap-1.5 sm:gap-3 items-stretch">
         {/* Left Column (5 cols): Repos 0, 1, 2 */}
-        <div className="lg:col-span-5 flex flex-col gap-2">
+        <div className="lg:col-span-5 flex flex-col gap-1.5 sm:gap-2 min-w-0">
           {leftRepos.map((repo, idx) => (
             <RepoPanelItem
               key={repo.name}
@@ -180,7 +179,7 @@ export const Work: React.FC = () => {
         />
 
         {/* Right Column (5 cols): Repos 3, 4, 5 + commit density */}
-        <div className="lg:col-span-5 flex flex-col gap-2">
+        <div className="lg:col-span-5 flex flex-col gap-1.5 sm:gap-2 min-w-0">
           {rightRepos.map((repo, idx) => (
             <RepoPanelItem
               key={repo.name}
@@ -199,7 +198,7 @@ export const Work: React.FC = () => {
               panelCode="03.LOG // 28D"
               panelTitle="COMMIT DENSITY"
               tiltDeg={-0.6}
-              className="hidden sm:flex"
+              className="hidden lg:flex"
             >
               <div className="grid grid-cols-14 gap-1">
                 {activityByDay.slice(0, 14).map((count, i) => {

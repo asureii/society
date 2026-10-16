@@ -153,24 +153,30 @@ body {
 }
 
 /* Custom Manga Scrollbar for Dashboard Panels */
-[data-widget-rail="right"] {
+[data-widget-rail="right"],
+[data-widget-rail="mobile-stack"] {
   scrollbar-width: thin;
   scrollbar-color: var(--ink) transparent;
 }
 
-[data-widget-rail="right"]::-webkit-scrollbar {
+[data-widget-rail="right"]::-webkit-scrollbar,
+[data-widget-rail="mobile-stack"]::-webkit-scrollbar {
   width: 5px;
 }
 
-[data-widget-rail="right"]::-webkit-scrollbar-track {
+[data-widget-rail="right"]::-webkit-scrollbar-track,
+[data-widget-rail="mobile-stack"]::-webkit-scrollbar-track {
   background: transparent;
 }
 
-[data-widget-rail="right"]::-webkit-scrollbar-thumb {
+[data-widget-rail="right"]::-webkit-scrollbar-thumb,
+[data-widget-rail="mobile-stack"]::-webkit-scrollbar-thumb {
   background: var(--ink);
 }
 
-[data-widget-rail="right"]::-webkit-scrollbar-thumb:hover {
+[data-widget-rail="right"]::-webkit-scrollbar-thumb:hover,
+[data-widget-rail="mobile-stack"]::-webkit-scrollbar-thumb:hover {
   background: var(--red);
 }
+
 

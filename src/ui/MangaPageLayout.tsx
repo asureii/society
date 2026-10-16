@@ -61,9 +61,9 @@ export const MangaPanel: React.FC<MangaPanelProps> = ({
 
   const bleedClass =
     bleedEdge === 'left'
-      ? '-ml-2 sm:-ml-4 pl-3 sm:pl-4'
+      ? 'sm:-ml-4 sm:pl-4'
       : bleedEdge === 'right'
-        ? '-mr-2 sm:-mr-4 pr-3 sm:pr-4'
+        ? 'sm:-mr-4 sm:pr-4'
         : '';
 
   return (
@@ -76,7 +76,7 @@ export const MangaPanel: React.FC<MangaPanelProps> = ({
         ...(tiltDeg !== 0 ? { transform: `rotate(${tiltDeg * 0.32}deg)` } : {}),
         ...style,
       }}
-      className={`relative bg-paper-pure text-ink p-2.5 sm:p-3.5 flex flex-col justify-between transition-transform duration-200 pointer-events-auto ${bleedClass} ${className}`}
+      className={`relative bg-paper-pure text-ink p-2 sm:p-3.5 flex flex-col justify-between transition-transform duration-200 pointer-events-auto ${bleedClass} ${className}`}
     >
       {/* Crisp hand-ruled SVG polygon border (no SVG filter for 60fps compositing) */}
       <svg
@@ -116,14 +116,14 @@ export const MangaPanel: React.FC<MangaPanelProps> = ({
       )}
 
       {(panelCode || panelTitle) && (
-        <div className="flex items-center justify-between gap-2 border-b border-ink/20 pb-1 mb-1.5">
+        <div className="flex items-center justify-between gap-1.5 sm:gap-2 border-b border-ink/20 pb-1 mb-1 sm:mb-1.5">
           {panelCode && (
-            <span className="font-mono text-[10px] font-bold tracking-widest uppercase px-1.5 py-0.5 bg-ink text-paper-pure">
+            <span className="font-mono text-[9px] sm:text-[10px] font-bold tracking-widest uppercase px-1 sm:px-1.5 py-0.5 bg-ink text-paper-pure shrink-0">
               {panelCode}
             </span>
           )}
           {panelTitle && (
-            <span className="font-mono text-[10px] font-bold tracking-widest uppercase text-ink truncate">
+            <span className="font-mono text-[9px] sm:text-[10px] font-bold tracking-widest uppercase text-ink truncate">
               {panelTitle}
             </span>
           )}
@@ -384,7 +384,7 @@ export const MangaPinnedChapter: React.FC<MangaPinnedChapterProps> = ({
       data-panel-active={initiallyVisible ? 'true' : 'false'}
       aria-hidden={initiallyVisible ? 'false' : 'true'}
       aria-label={`Chapter ${chapterNumber}: ${title}`}
-      className="fixed inset-0 pointer-events-none z-10 flex flex-col justify-start pt-[74px] sm:pt-[82px] pb-6 px-3 sm:px-8 md:px-12 overflow-hidden transition-none"
+      className="fixed inset-0 pointer-events-none z-10 flex flex-col justify-start pt-[56px] sm:pt-[82px] pb-11 sm:pb-6 px-2.5 sm:px-8 md:px-12 overflow-hidden transition-none"
       style={{
         display: initiallyVisible ? 'flex' : 'none',
         opacity: 1,
@@ -398,20 +398,20 @@ export const MangaPinnedChapter: React.FC<MangaPinnedChapterProps> = ({
           <header
             data-avoid-hud
             data-content-box={`${id}-header`}
-            className="bg-paper-pure border-2 border-ink px-2.5 py-1.5 sm:px-4 sm:py-2 mb-2 sm:mb-3 flex flex-wrap items-center justify-between gap-2 shadow-[3px_3px_0px_var(--ink)] shrink-0 pointer-events-auto"
+            className="bg-paper-pure border-2 border-ink px-2.5 py-1 sm:px-4 sm:py-2 mb-1.5 sm:mb-3 flex flex-wrap items-center justify-between gap-1.5 sm:gap-2 shadow-[3px_3px_0px_var(--ink)] shrink-0 pointer-events-auto"
           >
-            <div className="flex items-center gap-2">
-              <span className="bg-ink text-paper-pure font-mono text-[10px] font-bold px-1.5 py-0.5 tracking-widest uppercase">
+            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+              <span className="bg-ink text-paper-pure font-mono text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 tracking-widest uppercase shrink-0">
                 CH.{chapterNumber}
               </span>
-              <h2 className="font-serif font-bold text-sm sm:text-lg md:text-xl tracking-tight uppercase text-ink leading-none">
+              <h2 className="font-serif font-bold text-xs sm:text-lg md:text-xl tracking-tight uppercase text-ink leading-none truncate">
                 {title}
               </h2>
-              <span className="hidden md:inline-block font-jp text-xs font-bold text-red tracking-widest">
+              <span className="hidden md:inline-block font-jp text-xs font-bold text-red tracking-widest shrink-0">
                 {jpSubtitle}
               </span>
             </div>
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2 shrink-0">
               <p className="hidden lg:block font-sans text-xs text-ink max-w-md truncate">
                 {summary}
               </p>

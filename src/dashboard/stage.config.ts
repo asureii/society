@@ -56,15 +56,15 @@ export const STAGE_DASHBOARD_CONFIG: DashboardStageConfig = {
   },
   mobileStageFocalRect: {
     x: [0.0, 0.56],
-    y: [0.08, 0.44],
+    y: [0.14, 0.48],
   },
   orbRegion: {
     x: [0.53, 0.67],
     y: [0.20, 0.58],
   },
   mobileOrbRegion: {
-    x: [0.60, 0.88],
-    y: [0.16, 0.38],
+    x: [0.64, 0.88],
+    y: [0.18, 0.38],
   },
   uiSafeRects: {
     rightRail: {
@@ -77,16 +77,16 @@ export const STAGE_DASHBOARD_CONFIG: DashboardStageConfig = {
     },
   },
   eyeScreenPos: [0.32, 0.42],
-  mobileEyeScreenPos: [0.31, 0.22],
+  mobileEyeScreenPos: [0.41, 0.28],
   faceCenterPos: [0.28, 0.46],
-  mobileFaceCenterPos: [0.27, 0.25],
+  mobileFaceCenterPos: [0.36, 0.31],
   orb: {
     defaultPos: [0.60, 0.39],
-    mobileDefaultPos: [0.74, 0.27],
+    mobileDefaultPos: [0.78, 0.28],
     radius: 0.028,
-    mobileRadius: 0.048,
+    mobileRadius: 0.044,
     minFaceDistance: 0.22,
-    mobileMinFaceDistance: 0.26,
+    mobileMinFaceDistance: 0.24,
     pointerFollowSmoothing: 0.09,
     pointerDownMultiplier: 3.2,
     keyboardNudgeStep: 0.025,

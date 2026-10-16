@@ -674,10 +674,10 @@ function renderDashboardCompositedFrame(opts: RenderDashboardOptions): {
   }
 
   // 2. Eva-01 1-to-1 Bust Silhouette with 7px dilated white keyline
-  const evaSize = Math.round(isMob ? H * 0.42 : H * 0.86);
-  const evaX = Math.round(-0.02 * evaSize);
+  const evaSize = Math.round(isMob ? Math.min(H * 0.43, W * 0.78) : H * 0.86);
+  const evaX = Math.round(isMob ? -0.04 * evaSize : -0.02 * evaSize);
   const evaY = isMob
-    ? Math.round(H * 0.44 - evaSize + 0.02 * evaSize)
+    ? Math.round(H * 0.48 - 0.96 * evaSize)
     : Math.round(H - evaSize + 0.02 * evaSize);
 
   // Dilate 7px white keyline around Eva silhouette
@@ -877,11 +877,13 @@ function renderDashboardCompositedFrame(opts: RenderDashboardOptions): {
       false
     );
   } else {
-    const stackY = Math.round(H * 0.58);
+    const stackY = Math.round(H * 0.48);
+    surface.fillRect(0, stackY, W, H - stackY, COL_PAPER);
+    surface.fillRect(0, stackY, W, 2, COL_INK);
     drawMangaBox(
-      16,
-      stackY,
-      W - 32,
+      12,
+      stackY + 10,
+      W - 24,
       145,
       'SYNC.01',
       'PILOT PRESENCE',
@@ -889,13 +891,23 @@ function renderDashboardCompositedFrame(opts: RenderDashboardOptions): {
       true
     );
     drawMangaBox(
-      16,
-      stackY + 158,
-      W - 32,
+      12,
+      stackY + 166,
+      W - 24,
       120,
       'SYNC.02',
       'AUDIO FEED',
       spotifyPlaying ? ['JOIN ME - RAZORBLADE MIX', 'HIM'] : ['NO ACTIVE STREAM'],
+      false
+    );
+    drawMangaBox(
+      12,
+      stackY + 296,
+      W - 24,
+      110,
+      'SYNC.03',
+      'ACTIVE PROCESS',
+      ['NEOVIM // WORKSPACE', 'T+01:14:08'],
       false
     );
   }

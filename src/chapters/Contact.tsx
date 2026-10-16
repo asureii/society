@@ -45,7 +45,7 @@ export const Contact: React.FC = () => {
       summary="BEFORE THE MONUMENTAL STONE DOORWAY. STEP ACROSS THE THRESHOLD."
       alignment="center"
     >
-      <div className="w-full max-w-2xl mx-auto flex-1 flex flex-col justify-end items-center gap-3 pb-4 pointer-events-none max-h-[45vh] lg:max-h-none overflow-hidden">
+      <div className="w-full max-w-2xl mx-auto flex-1 flex flex-col justify-end items-center gap-3 pb-2 sm:pb-4 pointer-events-none">
         {/* Clean Contact Caption Panel below the Threshold sill (exits completely by endP = 0.05) */}
         <div
           data-content-box="contact-threshold-panel"
@@ -69,7 +69,7 @@ export const Contact: React.FC = () => {
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+          <div className="grid grid-cols-2 gap-1.5">
             {contactItems.map((item) => (
               <a
                 key={item.code}
